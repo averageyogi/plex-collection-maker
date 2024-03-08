@@ -1,0 +1,16 @@
+## This file is a template remove the .template to use the file
+
+collections:
+  # Name of the collection
+  Test Collection:
+    collection_order: custom
+    # List of movies in collection
+    movies:
+      - film_a
+      - film_b
+  Test Collection 2:
+    collection_order: Release date
+    movies:
+      - film1
+      - film1 2
+      - "film3: The Third One"  # Special characters require quotes

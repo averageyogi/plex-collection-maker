@@ -1,0 +1,11 @@
+## This file is a template remove the .template to use the file
+
+libraries:
+  # These are names of libraries in your Plex
+  Movies:
+    collection_files:
+      # Path to collection config files, you can have multiple files per library
+      - file: ./movie_collections.yml
+  TV Shows:
+    collection_files:
+      - file: ./tv_collections.yml

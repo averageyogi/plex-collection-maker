@@ -1,4 +1,13 @@
-collections/
+# Environments and configs
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+config.yml
+collection_configs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -54,12 +63,3 @@ ipython_config.py
 
 # PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
 __pypackages__/
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/

@@ -1,0 +1,16 @@
+## This file is a template remove the .template to use the file
+
+collections: 
+  # Name of the collection
+  Test Collection:
+    collection_order: custom 
+    # List of shows in collection
+    shows:
+      - show1
+      - show2
+      - "show3: The Third One"  # Special characters require quotes
+  Test Collection 2:
+    collection_order: custom
+    shows:
+      - show_a
+      - show_b
