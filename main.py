@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 import plexapi.exceptions
 from plexapi.server import PlexServer
 from plexapi.library import LibrarySection
+from plexapi.collection import Collection
+from plexapi.media import Poster
+from plexapi.video import Movie, Show
 import requests
 import yaml
 
@@ -122,6 +125,10 @@ def main() -> None:
 
     plex_libraries = pcm.get_libraries()
 
+    # print()
+    # print(plex_libraries['Movies'].title)
+    # print(plex_libraries["Movies"].recentlyAdded(5))
+
     print("Found Plex libraries: ", end="")
     print(*plex_libraries.keys(), sep=", ")
     print("Found collection configs:")
@@ -134,8 +141,45 @@ def main() -> None:
         print(pcm.collections_config[lib])
 
     print()
-    print(plex_libraries['Movies'].title)
-    print(plex_libraries["Movies"].recentlyAdded(5))
+    print(plex_libraries["TV Shows"].collections())
+    print()
+    print()
+
+    # bbcearth: Collection = plex_libraries["TV Shows"].collection("BBC Earth")
+    # print(bbcearth.posters())
+    # bbcearthposter: Poster = bbcearth.posters()[0]
+    # bbcearth.setPoster(bbcearthposter)
+
+
+    #TODO remove "TV Shows", loop over all libraries, refactor into function
+    #TODO add rest of collection attrs (sorting, poster, sort name, etc)
+    # Create a regular collection
+    # movies = plex.library.section("Movies")
+    tv = plex_libraries["TV Shows"]
+    tv_coll_titles = [*pcm.collections_config["TV Shows"].keys()]
+    print(tv_coll_titles)
+    for c in tv_coll_titles:
+        shows: list[Show] = []
+        for s in pcm.collections_config["TV Shows"][c]['shows']:
+            try:
+                shows.append(tv.get(s))
+            except plexapi.exceptions.NotFound:
+                print(f'show "{s}" not found')
+        try:
+            collection = None
+            tv.collection(c)
+        except plexapi.exceptions.NotFound:
+            collection: Collection = tv.createCollection(
+                title=c,
+                items=shows
+            )
+        print(collection)
+    print(shows)
+
+    # print('naruto: ', tv.collection('Naruto'))
+    # print('star wars: ', tv.collection('StarWars'))
+
+
 
 
 if __name__ == "__main__":
