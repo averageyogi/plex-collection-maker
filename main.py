@@ -117,6 +117,49 @@ class PlexCollectionMaker:
 
         return plex_libraries
 
+    def make_collections(self, plex_libraries: dict[str, LibrarySection]) -> dict[str, list[Collection]]:
+        """
+        Create new regular collections from config lists.
+
+        Args:
+            plex_libraries (dict[str, LibrarySection]): {library name: Plex library object}
+        
+        Returns:
+            dict[str, list[Collection]]: {library name: list[Collection]} Preexisting collections to check for updates.
+        """
+        #TODO add rest of collection attrs (sorting, poster, sort name, etc)
+
+        # print()
+        collections_to_update: dict[str, list[Collection]] = {}
+        for library in plex_libraries.items():
+            lib_collection_titles = [*self.collections_config[library[0]].keys()]
+            # print(lib_coll_titles)
+            collections_to_update[library[0]] = []
+            for c in lib_collection_titles:
+
+                try:
+                    collection: Collection = library[1].collection(c)
+                    collections_to_update[library[0]].append(collection)
+                    # print(collections_to_update)
+                except plexapi.exceptions.NotFound as err:
+                    print(err)
+
+                    coll_items: list[Show] = []
+                    # print(self.collections_config[library[0]][c])
+                    for s in self.collections_config[library[0]][c]["items"]:
+                        try:
+                            coll_items.append(library[1].get(s))
+                        except plexapi.exceptions.NotFound:
+                            print(f'Item "{s}" not found.')
+                    collection: Collection = library[1].createCollection(
+                        title=c,
+                        items=coll_items
+                    )
+
+                # print(collection)
+
+        return collections_to_update
+
 def main() -> None:
     """
     Function to run script logic.
@@ -132,9 +175,10 @@ def main() -> None:
     print("Found Plex libraries: ", end="")
     print(*plex_libraries.keys(), sep=", ")
     print("Found collection configs:")
-    for lib in plex_libraries:
-        print(f"  {lib}: ", end="")
-        print(*pcm.collections_config[lib].keys(), sep=", ")
+    for lib in plex_libraries.items():
+        # print('plex lib object', lib[1])
+        print(f"  {lib[0]}: ", end="")
+        print(*pcm.collections_config[lib[0]].keys(), sep=", ")
 
     print()
     for lib in plex_libraries:
@@ -151,30 +195,13 @@ def main() -> None:
     # bbcearth.setPoster(bbcearthposter)
 
 
-    #TODO remove "TV Shows", loop over all libraries, refactor into function
-    #TODO add rest of collection attrs (sorting, poster, sort name, etc)
-    # Create a regular collection
-    # movies = plex.library.section("Movies")
-    tv = plex_libraries["TV Shows"]
-    tv_coll_titles = [*pcm.collections_config["TV Shows"].keys()]
-    print(tv_coll_titles)
-    for c in tv_coll_titles:
-        shows: list[Show] = []
-        for s in pcm.collections_config["TV Shows"][c]['shows']:
-            try:
-                shows.append(tv.get(s))
-            except plexapi.exceptions.NotFound:
-                print(f'show "{s}" not found')
-        try:
-            collection = None
-            tv.collection(c)
-        except plexapi.exceptions.NotFound:
-            collection: Collection = tv.createCollection(
-                title=c,
-                items=shows
-            )
-        print(collection)
-    print(shows)
+
+    collections_to_update = pcm.make_collections(plex_libraries=plex_libraries)
+
+    print(collections_to_update)
+
+
+    #TODO Or update existing collection
 
     # print('naruto: ', tv.collection('Naruto'))
     # print('star wars: ', tv.collection('StarWars'))
