@@ -3,14 +3,31 @@
 collections:
   # Name of the collection
   Test Collection:
-    collection_order: custom
+    titleSort: Test 1
+
+    # mode is one of the following values: 
+    #   "default"   (Library default), 
+    #   "hide"      (Hide Collection), 
+    #   "hideItems" (Hide Items in this Collection), 
+    #   "showItems" (Show this Collection and its Items)
+    mode: default
+
+    # sort is one of the following values: 
+    #   "release" (Order Collection by release dates), 
+    #   "alpha"   (Order Collection alphabetically), 
+    #   "custom"  (Custom collection order)
+    sort: release
+
     # List of movies in collection
-    movies:
+    items:
       - film_a
       - film_b
+    poster: ./posters/movies/Test-Collection.jpg
   Test Collection 2:
-    collection_order: Release date
-    movies:
+    mode: default
+    sort: alpha
+    items:
       - film1
       - film1 2
       - "film3: The Third One"  # Special characters require quotes
+    poster: ./posters/movies/Test-Collection-2.jpg

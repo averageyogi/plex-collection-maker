@@ -9,6 +9,11 @@ venv.bak/
 config.yml
 collection_configs/
 
+# Images
+*.jpg
+*.png
+*.gif
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
