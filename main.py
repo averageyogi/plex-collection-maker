@@ -155,10 +155,50 @@ class PlexCollectionMaker:
                         title=c,
                         items=coll_items
                     )
+                    collection.uploadPoster(filepath=self.collections_config[library[0]][c]["poster"])
 
                 # print(collection)
 
         return collections_to_update
+
+    def edit_collections(
+        self,
+        plex_libraries: dict[str, LibrarySection],
+        collections_to_update: dict[str, list[Collection]]
+    ):
+
+        # collections_to_update['TV Shows'][0].uploadPoster(filepath="./testing.jpg")
+        # collections_to_update['TV Shows'][0].batchEdits()
+        # collections_to_update['TV Shows'][0]
+
+        print()
+        print('edit colls')
+        for lib in collections_to_update.items():
+            for coll_update in lib[1]:
+                print(lib[0], coll_update)
+                print(coll_update.items())
+                # print(coll_update.title)
+                new_items = []
+                for s in self.collections_config[lib[0]][coll_update.title]["items"]:
+                    if s not in map(lambda x: x.title, coll_update.items()):
+                        print(f'Adding {s} to "{coll_update.title}" collection.')
+                        new_items.append(plex_libraries[lib[0]].get(s))
+                if len(new_items) > 0:
+                    coll_update.addItems(new_items)
+
+
+        #                 try:
+        #                     coll_items.append(library[1].get(s))
+        #                 except plexapi.exceptions.NotFound:
+        #                     print(f'Item "{s}" not found.')
+        #             collection: Collection = library[1].createCollection(
+        #                 title=c,
+        #                 items=coll_items
+        #             )
+        #             collection.uploadPoster(filepath=self.collections_config[library[0]][c]["poster"])
+
+
+
 
 def main() -> None:
     """
@@ -194,17 +234,21 @@ def main() -> None:
     # bbcearthposter: Poster = bbcearth.posters()[0]
     # bbcearth.setPoster(bbcearthposter)
 
+    # print('naruto: ', tv.collection('Naruto'))
+    # print('star wars: ', tv.collection('StarWars'))
+
 
 
     collections_to_update = pcm.make_collections(plex_libraries=plex_libraries)
 
     print(collections_to_update)
 
-
     #TODO Or update existing collection
+    pcm.edit_collections(
+        plex_libraries=plex_libraries,
+        collections_to_update=collections_to_update
+    )
 
-    # print('naruto: ', tv.collection('Naruto'))
-    # print('star wars: ', tv.collection('StarWars'))
 
 
 
