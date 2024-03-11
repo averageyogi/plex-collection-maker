@@ -127,37 +127,39 @@ class PlexCollectionMaker:
         Returns:
             dict[str, list[Collection]]: {library name: list[Collection]} Preexisting collections to check for updates.
         """
-        #TODO add rest of collection attrs (sorting, poster, sort name, etc)
-
-        # print()
         collections_to_update: dict[str, list[Collection]] = {}
         for library in plex_libraries.items():
-            lib_collection_titles = [*self.collections_config[library[0]].keys()]
-            # print(lib_coll_titles)
             collections_to_update[library[0]] = []
-            for c in lib_collection_titles:
-
+            for collection_title in [*self.collections_config[library[0]].keys()]:
                 try:
-                    collection: Collection = library[1].collection(c)
+                    collection: Collection = library[1].collection(collection_title)
                     collections_to_update[library[0]].append(collection)
-                    # print(collections_to_update)
-                except plexapi.exceptions.NotFound as err:
-                    print(err)
-
-                    coll_items: list[Show] = []
-                    # print(self.collections_config[library[0]][c])
-                    for s in self.collections_config[library[0]][c]["items"]:
+                except plexapi.exceptions.NotFound: # as err:
+                    # print(err)
+                    collection_items: list[Show] = []
+                    for item in self.collections_config[library[0]][collection_title]["items"]:
                         try:
-                            coll_items.append(library[1].get(s))
+                            collection_items.append(library[1].get(item))
                         except plexapi.exceptions.NotFound:
-                            print(f'Item "{s}" not found.')
+                            print(f'Item "{item}" not found in "{library[0]}" library.')
                     collection: Collection = library[1].createCollection(
-                        title=c,
-                        items=coll_items
+                        title=collection_title,
+                        items=collection_items
                     )
-                    collection.uploadPoster(filepath=self.collections_config[library[0]][c]["poster"])
-
-                # print(collection)
+                    if "titleSort" in self.collections_config[library[0]][collection_title]:
+                        collection.editSortTitle(
+                            sortTitle=self.collections_config[library[0]][collection_title]["titleSort"]
+                        )
+                    if "labels" in self.collections_config[library[0]][collection_title]:
+                        collection.addLabel(labels=self.collections_config[library[0]][collection_title]["labels"])
+                    if "poster" in self.collections_config[library[0]][collection_title]:
+                        collection.uploadPoster(
+                            filepath=self.collections_config[library[0]][collection_title]["poster"]
+                        )
+                    if "mode" in self.collections_config[library[0]][collection_title]:
+                        collection.modeUpdate(mode=self.collections_config[library[0]][collection_title]["mode"])
+                    if "sort" in self.collections_config[library[0]][collection_title]:
+                        collection.sortUpdate(sort=self.collections_config[library[0]][collection_title]["sort"])
 
         return collections_to_update
 
@@ -166,6 +168,13 @@ class PlexCollectionMaker:
         plex_libraries: dict[str, LibrarySection],
         collections_to_update: dict[str, list[Collection]]
     ):
+        """
+        Edit existing collections from config lists.
+
+        Args:
+            plex_libraries (dict[str, LibrarySection]): {library name: Plex library object}
+            collections_to_update (dict[str, list[Collection]]): Collections to update
+        """
 
         # collections_to_update['TV Shows'][0].uploadPoster(filepath="./testing.jpg")
         # collections_to_update['TV Shows'][0].batchEdits()
