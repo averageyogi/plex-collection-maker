@@ -50,6 +50,10 @@ class PlexCollectionMaker:
             # Only local ip given
             self.plex_pub_ip = None
 
+        #TODO clean/ensure http:// at start of ip address
+        print(self.plex_ip[:8])
+        
+
         with open("./config.yml", encoding="utf-8") as config_file:
             try:
                 config_yaml = yaml.safe_load(config_file)
@@ -91,7 +95,7 @@ class PlexCollectionMaker:
             else:
                 sys.exit(
                     "Unable to connect to Plex server. Please check the "
-                    f"{"PLEX_SERVER_PUBLIC_IP" if self.using_public_ip else "PLEX_SERVER_IP"} "
+                    f'{"PLEX_SERVER_PUBLIC_IP" if self.using_public_ip else "PLEX_SERVER_IP"} '
                     "in .env, and consult the README."
                 )
         except plexapi.exceptions.Unauthorized:
@@ -143,37 +147,55 @@ class PlexCollectionMaker:
                         self.collections_config[library[0]][collection_title]["items"]):
                         for item in self.collections_config[library[0]][collection_title]["items"]:
                             try:
-                                collection_items.append(library[1].get(item))
+                                print(item.split('tmdb-'))
+                                collection_items.append(library[1].get(item.split('tmdb-')[0]))
+                                # collection_items.append(library[1].getGuid(item)) #TODO test Drácula vs Dracula vs Countess Dracula
+                                print(item)
+                                # print(library[1].getGuid(f"tmdb://{item.split('tmdb-')[-1]}"))
+                                print(library[1].getGuid(f"{item.split('tmdb-')[-1]}"))
                             except plexapi.exceptions.NotFound:
                                 print(f'Item "{item}" not found in {library[0]} library.')
-                        collection: Collection = library[1].createCollection(
-                            title=collection_title,
-                            items=collection_items
-                        )
-                        # Set sort title
-                        if ("titleSort" in self.collections_config[library[0]][collection_title] and
-                            self.collections_config[library[0]][collection_title]["titleSort"]):
-                            collection.editSortTitle(
-                                sortTitle=self.collections_config[library[0]][collection_title]["titleSort"]
+                        if len(collection_items) > 0:
+                            collection: Collection = library[1].createCollection(
+                                title=collection_title,
+                                items=collection_items
                             )
-                        # Add labels according to config list
-                        if ("labels" in self.collections_config[library[0]][collection_title] and
-                            self.collections_config[library[0]][collection_title]["labels"]):
-                            collection.addLabel(labels=self.collections_config[library[0]][collection_title]["labels"])
-                        # Upload and set poster
-                        if ("poster" in self.collections_config[library[0]][collection_title] and
-                            self.collections_config[library[0]][collection_title]["poster"]):
-                            collection.uploadPoster(
-                                filepath=self.collections_config[library[0]][collection_title]["poster"]
+                            # Set sort title
+                            if ("titleSort" in self.collections_config[library[0]][collection_title] and
+                                self.collections_config[library[0]][collection_title]["titleSort"]):
+                                collection.editSortTitle(
+                                    sortTitle=self.collections_config[library[0]][collection_title]["titleSort"]
+                                )
+                            # Add labels according to config list
+                            if ("labels" in self.collections_config[library[0]][collection_title] and
+                                self.collections_config[library[0]][collection_title]["labels"]):
+                                collection.addLabel(
+                                    labels=self.collections_config[library[0]][collection_title]["labels"]
+                                )
+                            # Upload and set poster
+                            if ("poster" in self.collections_config[library[0]][collection_title] and
+                                self.collections_config[library[0]][collection_title]["poster"]):
+                                collection.uploadPoster(
+                                    filepath=self.collections_config[library[0]][collection_title]["poster"]
+                                )
+                            # Set collection mode
+                            if ("mode" in self.collections_config[library[0]][collection_title] and
+                                self.collections_config[library[0]][collection_title]["mode"]):
+                                collection.modeUpdate(
+                                    mode=self.collections_config[library[0]][collection_title]["mode"]
+                                )
+                            # Set collection order
+                            if ("sort" in self.collections_config[library[0]][collection_title] and
+                                self.collections_config[library[0]][collection_title]["sort"]):
+                                collection.sortUpdate(
+                                    sort=self.collections_config[library[0]][collection_title]["sort"]
+                                )
+                        else:
+                            print(
+                                f'\033[31mCollection "{collection_title}" for '
+                                f'"{library[0]}" library has no items in config. '
+                                'Unable to create collection.\033[0m'
                             )
-                        # Set collection mode
-                        if ("mode" in self.collections_config[library[0]][collection_title] and
-                            self.collections_config[library[0]][collection_title]["mode"]):
-                            collection.modeUpdate(mode=self.collections_config[library[0]][collection_title]["mode"])
-                        # Set collection order
-                        if ("sort" in self.collections_config[library[0]][collection_title] and
-                            self.collections_config[library[0]][collection_title]["sort"]):
-                            collection.sortUpdate(sort=self.collections_config[library[0]][collection_title]["sort"])
                     else:
                         print(
                             f'\033[31mCollection "{collection_title}" for '
@@ -273,7 +295,7 @@ class PlexCollectionMaker:
 
             # testdict = {'test': {'collection': ['thing1', 'thing2', 'thing3']}}
             os.makedirs("./config_dump", exist_ok=True)
-            config_file = Path(f"./config_dump/{library[0].replace(" ", "_")}_collections.yml")
+            config_file = Path(f'./config_dump/{library[0].replace(" ", "_")}_collections.yml')
             # config_file.mkdir(parents=True, exist_ok=True)
             with open(config_file.as_posix(), "w", encoding="utf-8") as f:
                 yaml.dump(lib_dicts, f)
@@ -314,6 +336,6 @@ def main(edit_collections: bool = False, dump_collections: bool = False) -> None
 
 if __name__ == "__main__":
     main(
-        edit_collections=False,
-        dump_collections=True
+        edit_collections=True,
+        dump_collections=False
     )
