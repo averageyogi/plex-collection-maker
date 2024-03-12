@@ -1,12 +1,12 @@
 import os
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 import plexapi.exceptions
 from plexapi.server import PlexServer
 from plexapi.library import LibrarySection
 from plexapi.collection import Collection
-from plexapi.media import Poster
 from plexapi.video import Movie, Show
 import requests
 import yaml
@@ -114,7 +114,6 @@ class PlexCollectionMaker:
                 sys.exit(
                     f'Library named "{library}" not found. Please check the config.yml, and consult the README.'
                 )
-
         return plex_libraries
 
     def make_collections(self, plex_libraries: dict[str, LibrarySection]) -> dict[str, list[Collection]]:
@@ -134,33 +133,53 @@ class PlexCollectionMaker:
                 try:
                     collection: Collection = library[1].collection(collection_title)
                     collections_to_update[library[0]].append(collection)
-                except plexapi.exceptions.NotFound: # as err:
-                    # print(err)
-                    collection_items: list[Show] = []
-                    for item in self.collections_config[library[0]][collection_title]["items"]:
-                        try:
-                            collection_items.append(library[1].get(item))
-                        except plexapi.exceptions.NotFound:
-                            print(f'Item "{item}" not found in "{library[0]}" library.')
-                    collection: Collection = library[1].createCollection(
-                        title=collection_title,
-                        items=collection_items
-                    )
-                    if "titleSort" in self.collections_config[library[0]][collection_title]:
-                        collection.editSortTitle(
-                            sortTitle=self.collections_config[library[0]][collection_title]["titleSort"]
-                        )
-                    if "labels" in self.collections_config[library[0]][collection_title]:
-                        collection.addLabel(labels=self.collections_config[library[0]][collection_title]["labels"])
-                    if "poster" in self.collections_config[library[0]][collection_title]:
-                        collection.uploadPoster(
-                            filepath=self.collections_config[library[0]][collection_title]["poster"]
-                        )
-                    if "mode" in self.collections_config[library[0]][collection_title]:
-                        collection.modeUpdate(mode=self.collections_config[library[0]][collection_title]["mode"])
-                    if "sort" in self.collections_config[library[0]][collection_title]:
-                        collection.sortUpdate(sort=self.collections_config[library[0]][collection_title]["sort"])
+                except plexapi.exceptions.NotFound: # as e:
+                    # print(e)
 
+                    # Add items according to config list
+                    print(f'Creating "{collection_title}" collection in {library[0]} library...')
+                    collection_items: list[Movie | Show] = []
+                    if ("items" in self.collections_config[library[0]][collection_title] and
+                        self.collections_config[library[0]][collection_title]["items"]):
+                        for item in self.collections_config[library[0]][collection_title]["items"]:
+                            try:
+                                collection_items.append(library[1].get(item))
+                            except plexapi.exceptions.NotFound:
+                                print(f'Item "{item}" not found in {library[0]} library.')
+                        collection: Collection = library[1].createCollection(
+                            title=collection_title,
+                            items=collection_items
+                        )
+                        # Set sort title
+                        if ("titleSort" in self.collections_config[library[0]][collection_title] and
+                            self.collections_config[library[0]][collection_title]["titleSort"]):
+                            collection.editSortTitle(
+                                sortTitle=self.collections_config[library[0]][collection_title]["titleSort"]
+                            )
+                        # Add labels according to config list
+                        if ("labels" in self.collections_config[library[0]][collection_title] and
+                            self.collections_config[library[0]][collection_title]["labels"]):
+                            collection.addLabel(labels=self.collections_config[library[0]][collection_title]["labels"])
+                        # Upload and set poster
+                        if ("poster" in self.collections_config[library[0]][collection_title] and
+                            self.collections_config[library[0]][collection_title]["poster"]):
+                            collection.uploadPoster(
+                                filepath=self.collections_config[library[0]][collection_title]["poster"]
+                            )
+                        # Set collection mode
+                        if ("mode" in self.collections_config[library[0]][collection_title] and
+                            self.collections_config[library[0]][collection_title]["mode"]):
+                            collection.modeUpdate(mode=self.collections_config[library[0]][collection_title]["mode"])
+                        # Set collection order
+                        if ("sort" in self.collections_config[library[0]][collection_title] and
+                            self.collections_config[library[0]][collection_title]["sort"]):
+                            collection.sortUpdate(sort=self.collections_config[library[0]][collection_title]["sort"])
+                    else:
+                        print(
+                            f'\033[31mCollection "{collection_title}" for '
+                            f'"{library[0]}" library has no items in config. '
+                            'Unable to create collection.\033[0m'
+                        )
         return collections_to_update
 
     def edit_collections(
@@ -175,41 +194,93 @@ class PlexCollectionMaker:
             plex_libraries (dict[str, LibrarySection]): {library name: Plex library object}
             collections_to_update (dict[str, list[Collection]]): Collections to update
         """
-
-        # collections_to_update['TV Shows'][0].uploadPoster(filepath="./testing.jpg")
-        # collections_to_update['TV Shows'][0].batchEdits()
-        # collections_to_update['TV Shows'][0]
-
-        print()
-        print('edit colls')
         for lib in collections_to_update.items():
             for coll_update in lib[1]:
-                print(lib[0], coll_update)
-                print(coll_update.items())
-                # print(coll_update.title)
-                new_items = []
-                for s in self.collections_config[lib[0]][coll_update.title]["items"]:
-                    if s not in map(lambda x: x.title, coll_update.items()):
-                        print(f'Adding {s} to "{coll_update.title}" collection.')
-                        new_items.append(plex_libraries[lib[0]].get(s))
-                if len(new_items) > 0:
-                    coll_update.addItems(new_items)
+                print(f'Syncing "{coll_update.title}" in "{lib[0]}" library to config.')
+                # Add/remove items according to config list
+                if ("items" in self.collections_config[lib[0]][coll_update.title] and
+                    self.collections_config[lib[0]][coll_update.title]["items"]):
+                    new_items = []
+                    for s in self.collections_config[lib[0]][coll_update.title]["items"]:
+                        if s not in map(lambda x: x.title, coll_update.items()):
+                            print(f'Adding {s} to "{coll_update.title}" collection...')
+                            new_items.append(plex_libraries[lib[0]].get(s))
+                    if len(new_items) > 0:
+                        coll_update.addItems(items=new_items)
+                    remove_items = []
+                    for s in map(lambda x: x.title, coll_update.items()):
+                        if s not in self.collections_config[lib[0]][coll_update.title]["items"]:
+                            print(f'Removing {s} from "{coll_update.title}" collection...')
+                            remove_items.append(plex_libraries[lib[0]].get(s))
+                    if len(remove_items) > 0:
+                        coll_update.removeItems(items=remove_items)
+                # Update sort title
+                if ("titleSort" in self.collections_config[lib[0]][coll_update.title] and
+                    self.collections_config[lib[0]][coll_update.title]["titleSort"]):
+                    coll_update.editSortTitle(
+                        sortTitle=self.collections_config[lib[0]][coll_update.title]["titleSort"]
+                    )
+                # Add/remove labels according to config list
+                if ("labels" in self.collections_config[lib[0]][coll_update.title] and
+                    self.collections_config[lib[0]][coll_update.title]["labels"]):
+                    new_labels = []
+                    for s in self.collections_config[lib[0]][coll_update.title]["labels"]:
+                        if s not in map(lambda x: x.tag, coll_update.labels):
+                            print(f'Adding {s} label to "{coll_update.title}" collection...')
+                            new_labels.append(s)
+                    if len(new_labels) > 0:
+                        coll_update.addLabel(labels=new_labels)
+                    remove_labels = []
+                    for s in map(lambda x: x.tag, coll_update.labels):
+                        if s not in self.collections_config[lib[0]][coll_update.title]["labels"]:
+                            print(f'Removing {s} label from "{coll_update.title}" collection...')
+                            remove_labels.append(s)
+                    if len(remove_labels) > 0:
+                        coll_update.removeLabel(labels=remove_labels)
+                # Update poster
+                if ("poster" in self.collections_config[lib[0]][coll_update.title] and
+                    self.collections_config[lib[0]][coll_update.title]["poster"]):
+                    coll_update.uploadPoster(
+                        filepath=self.collections_config[lib[0]][coll_update.title]["poster"]
+                    )
+                # Update collection mode
+                if ("mode" in self.collections_config[lib[0]][coll_update.title] and
+                    self.collections_config[lib[0]][coll_update.title]["mode"]):
+                    coll_update.modeUpdate(mode=self.collections_config[lib[0]][coll_update.title]["mode"])
+                # Update collection order
+                if ("sort" in self.collections_config[lib[0]][coll_update.title] and
+                    self.collections_config[lib[0]][coll_update.title]["sort"]):
+                    coll_update.sortUpdate(sort=self.collections_config[lib[0]][coll_update.title]["sort"])
+
+    def dump_collections(self, plex_libraries: dict[str, LibrarySection]):
+        """
+        Dump existing collections to YAML files.
+
+        Args:
+            plex_libraries (dict[str, LibrarySection]): {library name: Plex library object}
+        """
+        #TODO create dict organized in needed yaml format
+        for library in plex_libraries.items():
+            library_collections: list[Collection] = library[1].collections()
+            lib_dicts: dict[str, list[str]] = {}
+            for c in library_collections:
+                # print(c.items())
+                # movies: list[Movie] = c.items()
+                # movies[0].title
+                lib_dicts[c.title] = [*map(lambda x: x.title, c.items())]
+                # pass
+            # print(lib_dicts)
+
+            # testdict = {'test': {'collection': ['thing1', 'thing2', 'thing3']}}
+            os.makedirs("./config_dump", exist_ok=True)
+            config_file = Path(f"./config_dump/{library[0].replace(" ", "_")}_collections.yml")
+            # config_file.mkdir(parents=True, exist_ok=True)
+            with open(config_file.as_posix(), "w", encoding="utf-8") as f:
+                yaml.dump(lib_dicts, f)
+        return config_file.parent.resolve()
 
 
-        #                 try:
-        #                     coll_items.append(library[1].get(s))
-        #                 except plexapi.exceptions.NotFound:
-        #                     print(f'Item "{s}" not found.')
-        #             collection: Collection = library[1].createCollection(
-        #                 title=c,
-        #                 items=coll_items
-        #             )
-        #             collection.uploadPoster(filepath=self.collections_config[library[0]][c]["poster"])
-
-
-
-
-def main() -> None:
+def main(edit_collections: bool = False, dump_collections: bool = False) -> None:
     """
     Function to run script logic.
     """
@@ -217,50 +288,32 @@ def main() -> None:
 
     plex_libraries = pcm.get_libraries()
 
-    # print()
-    # print(plex_libraries['Movies'].title)
-    # print(plex_libraries["Movies"].recentlyAdded(5))
-
     print("Found Plex libraries: ", end="")
     print(*plex_libraries.keys(), sep=", ")
     print("Found collection configs:")
     for lib in plex_libraries.items():
-        # print('plex lib object', lib[1])
         print(f"  {lib[0]}: ", end="")
         print(*pcm.collections_config[lib[0]].keys(), sep=", ")
-
-    print()
-    for lib in plex_libraries:
-        print(pcm.collections_config[lib])
-
-    print()
-    print(plex_libraries["TV Shows"].collections())
-    print()
     print()
 
-    # bbcearth: Collection = plex_libraries["TV Shows"].collection("BBC Earth")
-    # print(bbcearth.posters())
-    # bbcearthposter: Poster = bbcearth.posters()[0]
-    # bbcearth.setPoster(bbcearthposter)
+    if edit_collections:
+        collections_to_update = pcm.make_collections(plex_libraries=plex_libraries)
 
-    # print('naruto: ', tv.collection('Naruto'))
-    # print('star wars: ', tv.collection('StarWars'))
+        pcm.edit_collections(
+            plex_libraries=plex_libraries,
+            collections_to_update=collections_to_update
+        )
 
+        print("Collections updated.")
 
-
-    collections_to_update = pcm.make_collections(plex_libraries=plex_libraries)
-
-    print(collections_to_update)
-
-    #TODO Or update existing collection
-    pcm.edit_collections(
-        plex_libraries=plex_libraries,
-        collections_to_update=collections_to_update
-    )
-
-
-
+    if dump_collections:
+        print("Dumping existing collections to file...")
+        stem = pcm.dump_collections(plex_libraries=plex_libraries)
+        print(f'Complete. YAML files at "{stem}".')
 
 
 if __name__ == "__main__":
-    main()
+    main(
+        edit_collections=False,
+        dump_collections=True
+    )
