@@ -8,7 +8,7 @@ env.bak/
 venv.bak/
 config.yml
 collection_configs/
-config_dump/
+config_dump*/
 
 # Images
 *.jpg

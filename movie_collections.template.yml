@@ -3,7 +3,12 @@
 collections:
   # Name of the collection
   Test Collection:
+    # All subsections apart from "items" are optional
     titleSort: Test 1
+    labels:
+      - label1
+      - label2
+    poster: ./posters/movies/Test-Collection.jpg
 
     # mode is one of the following values: 
     #   "default"   (Library default), 
@@ -22,12 +27,11 @@ collections:
     items:
       - film_a
       - film_b
-    poster: ./posters/movies/Test-Collection.jpg
   Test Collection 2:
+    poster: ./posters/movies/Test-Collection-2.jpg
     mode: default
     sort: alpha
     items:
       - film1
       - film1 2
       - "film3: The Third One"  # Special characters require quotes
-    poster: ./posters/movies/Test-Collection-2.jpg

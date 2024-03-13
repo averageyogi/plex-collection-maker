@@ -3,19 +3,24 @@
 collections: 
   # Name of the collection
   Test Collection:
+    # All subsections apart from "items" are optional
     titleSort: Test 1
+    labels:
+      - label1
+      - label2
+    poster: ./posters/tv/Test-Collection.jpg
 
     # mode is one of the following values: 
-    #   "default" (Library default), 
-    #   "hide" (Hide Collection), 
+    #   "default"   (Library default), 
+    #   "hide"      (Hide Collection), 
     #   "hideItems" (Hide Items in this Collection), 
     #   "showItems" (Show this Collection and its Items)
     mode: default
 
     # sort is one of the following values: 
     #   "release" (Order Collection by release dates), 
-    #   "alpha" (Order Collection alphabetically), 
-    #   "custom" (Custom collection order)
+    #   "alpha"   (Order Collection alphabetically), 
+    #   "custom"  (Custom collection order)
     sort: release
 
     # List of shows in collection
@@ -23,12 +28,11 @@ collections:
       - show1
       - show2
       - "show3: The Third One"  # Special characters require quotes
-    poster: ./posters/tv/Test-Collection.jpg
   Test Collection 2:
     titleSort: Test 1
+    poster: ./posters/tv/Test-Collection-2.jpg
     mode: default
     sort: alpha
     items:
       - show_a
       - show_b
-    poster: ./posters/tv/Test-Collection-2.jpg
