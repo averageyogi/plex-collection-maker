@@ -52,7 +52,7 @@ class PlexCollectionMaker:
 
         #TODO clean/ensure http:// at start of ip address
         print(self.plex_ip[:8])
-        
+
 
         with open("./config.yml", encoding="utf-8") as config_file:
             try:
@@ -147,12 +147,12 @@ class PlexCollectionMaker:
                         self.collections_config[library[0]][collection_title]["items"]):
                         for item in self.collections_config[library[0]][collection_title]["items"]:
                             try:
-                                print(item.split('tmdb-'))
-                                collection_items.append(library[1].get(item.split('tmdb-')[0]))
+                                # print(item.split(' tmdb-'))
+                                collection_items.append(library[1].get(item.split(' tmdb-')[0]))
                                 # collection_items.append(library[1].getGuid(item)) #TODO test Drácula vs Dracula vs Countess Dracula
-                                print(item)
+                                # print(item)
                                 # print(library[1].getGuid(f"tmdb://{item.split('tmdb-')[-1]}"))
-                                print(library[1].getGuid(f"{item.split('tmdb-')[-1]}"))
+                                # collection_items.append(library[1].getGuid(f"{item.split(' tmdb-')[-1]}"))
                             except plexapi.exceptions.NotFound:
                                 print(f'Item "{item}" not found in {library[0]} library.')
                         if len(collection_items) > 0:
@@ -224,16 +224,29 @@ class PlexCollectionMaker:
                     self.collections_config[lib[0]][coll_update.title]["items"]):
                     new_items = []
                     for s in self.collections_config[lib[0]][coll_update.title]["items"]:
-                        if s not in map(lambda x: x.title, coll_update.items()):
+                        if (s.split(' tmdb-')[0].encode('utf-8') not in
+                            map(lambda x: x.title.encode('utf-8'), coll_update.items())):
                             print(f'Adding {s} to "{coll_update.title}" collection...')
-                            new_items.append(plex_libraries[lib[0]].get(s))
+                            new_items.append(plex_libraries[lib[0]].get(s.split(' tmdb-')[0]))
+                            # new_items.append(plex_libraries[lib[0]].getGuid(f"tmdb://{s.split('tmdb-')[-1]}")) #TODO
                     if len(new_items) > 0:
                         coll_update.addItems(items=new_items)
                     remove_items = []
                     for s in map(lambda x: x.title, coll_update.items()):
-                        if s not in self.collections_config[lib[0]][coll_update.title]["items"]:
+                        if (s.split(' tmdb-')[0].encode('utf-8') not in
+                            map(
+                                lambda x: x.split(' tmdb-')[0].encode('utf-8'),
+                                self.collections_config[lib[0]][coll_update.title]["items"]
+                            )
+                        ):
                             print(f'Removing {s} from "{coll_update.title}" collection...')
-                            remove_items.append(plex_libraries[lib[0]].get(s))
+                            # library.get(title) doesn't always return the
+                            # actual item with exact title (eg Horror-of-Dracula for Drácula),
+                            # so find match in full search
+                            remove_items.append(
+                                next(x for x in plex_libraries[lib[0]].search(title=s.split(' tmdb-')[0])
+                                     if x.title == s.split(' tmdb-')[0])
+                            )
                     if len(remove_items) > 0:
                         coll_update.removeItems(items=remove_items)
                 # Update sort title
@@ -281,21 +294,48 @@ class PlexCollectionMaker:
         Args:
             plex_libraries (dict[str, LibrarySection]): {library name: Plex library object}
         """
-        #TODO create dict organized in needed yaml format
         for library in plex_libraries.items():
             library_collections: list[Collection] = library[1].collections()
-            lib_dicts: dict[str, list[str]] = {}
+            lib_dicts: dict[
+                str, dict[
+                    str, dict[
+                        str, str | list[str]
+                    ]
+                ]
+            ] = {}
+            lib_dicts['collections'] = {}
             for c in library_collections:
-                # print(c.items())
-                # movies: list[Movie] = c.items()
-                # movies[0].title
-                lib_dicts[c.title] = [*map(lambda x: x.title, c.items())]
-                # pass
-            # print(lib_dicts)
+                lib_dicts['collections'][c.title] = {}
+                lib_dicts['collections'][c.title]['titleSort'] = c.titleSort
+                lib_dicts['collections'][c.title]['labels'] = [*map(lambda x: x.tag, c.labels)]
+                # lib_dicts['collections'][c.title]['poster'] = c.posterUrl
+                lib_dicts['collections'][c.title]['mode'] = c.collectionMode
+                lib_dicts['collections'][c.title]['sort'] = c.collectionSort
+                lib_dicts['collections'][c.title]['items'] = [*map(lambda x: x.title, c.items())]
+            print(lib_dicts)
 
-            # testdict = {'test': {'collection': ['thing1', 'thing2', 'thing3']}}
-            os.makedirs("./config_dump", exist_ok=True)
-            config_file = Path(f'./config_dump/{library[0].replace(" ", "_")}_collections.yml')
+            # test_dict = {
+            #     'collections': {
+            #         'collection1': {
+            #             'titleSort': 'titleSort',
+            #             'labels': [
+            #                 'label1',
+            #                 'label2',
+            #                 'label3'
+            #             ],
+            #             'poster': 'poster',
+            #             'mode': 'mode',
+            #             'sort': 'sort',
+            #             'items': [
+            #                 'item1',
+            #                 'item2',
+            #             ]
+            #         },
+            #         'collection2': {}
+            #     }
+            # }
+            os.makedirs("./config_dump2", exist_ok=True)
+            config_file = Path(f'./config_dump2/{library[0].replace(" ", "_")}_collections.yml')
             # config_file.mkdir(parents=True, exist_ok=True)
             with open(config_file.as_posix(), "w", encoding="utf-8") as f:
                 yaml.dump(lib_dicts, f)
