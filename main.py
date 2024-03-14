@@ -51,7 +51,7 @@ class PlexCollectionMaker:
             self.plex_pub_ip = None
 
         #TODO clean/ensure http:// at start of ip address
-        print(self.plex_ip[:8])
+        # print(self.plex_ip[:7])
 
 
         with open("./config.yml", encoding="utf-8") as config_file:
@@ -137,24 +137,23 @@ class PlexCollectionMaker:
                 try:
                     collection: Collection = library[1].collection(collection_title)
                     collections_to_update[library[0]].append(collection)
-                except plexapi.exceptions.NotFound: # as e:
-                    # print(e)
-
+                except plexapi.exceptions.NotFound:
                     # Add items according to config list
-                    print(f'Creating "{collection_title}" collection in {library[0]} library...')
+                    print(f'Creating "{collection_title}" collection in "{library[0]}" library...')
                     collection_items: list[Movie | Show] = []
                     if ("items" in self.collections_config[library[0]][collection_title] and
                         self.collections_config[library[0]][collection_title]["items"]):
                         for item in self.collections_config[library[0]][collection_title]["items"]:
                             try:
-                                # print(item.split(' tmdb-'))
-                                collection_items.append(library[1].get(item.split(' tmdb-')[0]))
-                                # collection_items.append(library[1].getGuid(item)) #TODO test Drácula vs Dracula vs Countess Dracula
-                                # print(item)
-                                # print(library[1].getGuid(f"tmdb://{item.split('tmdb-')[-1]}"))
-                                # collection_items.append(library[1].getGuid(f"{item.split(' tmdb-')[-1]}"))
+                                # Find library item using plex guid, if provided
+                                collection_items.append(library[1].getGuid(f"plex://{item.split(' plex://')[-1]}"))
                             except plexapi.exceptions.NotFound:
-                                print(f'Item "{item}" not found in {library[0]} library.')
+                                try:
+                                    # Fall back to item name, library.get(title) doesn't always return the
+                                    # actual item with exact title (eg Horror-of-Dracula for Drácula)
+                                    collection_items.append(library[1].get(item.split(' plex://')[0]))
+                                except plexapi.exceptions.NotFound:
+                                    print(f'\033[33mItem "{item}" not found in "{library[0]}" library.\033[0m')
                         if len(collection_items) > 0:
                             collection: Collection = library[1].createCollection(
                                 title=collection_title,
@@ -192,15 +191,15 @@ class PlexCollectionMaker:
                                 )
                         else:
                             print(
-                                f'\033[31mCollection "{collection_title}" for '
-                                f'"{library[0]}" library has no items in config. '
-                                'Unable to create collection.\033[0m'
+                                '\033[31mUnable to create collection. '
+                                f'Collection "{collection_title}" for '
+                                f'"{library[0]}" library has no items in config.\033[0m'
                             )
                     else:
                         print(
-                            f'\033[31mCollection "{collection_title}" for '
-                            f'"{library[0]}" library has no items in config. '
-                            'Unable to create collection.\033[0m'
+                            '\033[31mUnable to create collection. '
+                            f'Collection "{collection_title}" for '
+                            f'"{library[0]}" library has no items in config.\033[0m'
                         )
         return collections_to_update
 
@@ -218,81 +217,104 @@ class PlexCollectionMaker:
         """
         for lib in collections_to_update.items():
             for coll_update in lib[1]:
-                print(f'Syncing "{coll_update.title}" in "{lib[0]}" library to config.')
-                # Add/remove items according to config list
+                print(f'Syncing "{coll_update.title}" in "{lib[0]}" library to config...')
                 if ("items" in self.collections_config[lib[0]][coll_update.title] and
                     self.collections_config[lib[0]][coll_update.title]["items"]):
+                    # Add new items to collection that are in config, but not collection
                     new_items = []
+                    s: Movie
                     for s in self.collections_config[lib[0]][coll_update.title]["items"]:
-                        if (s.split(' tmdb-')[0].encode('utf-8') not in
-                            map(lambda x: x.title.encode('utf-8'), coll_update.items())):
-                            print(f'Adding {s} to "{coll_update.title}" collection...')
-                            new_items.append(plex_libraries[lib[0]].get(s.split(' tmdb-')[0]))
-                            # new_items.append(plex_libraries[lib[0]].getGuid(f"tmdb://{s.split('tmdb-')[-1]}")) #TODO
+                        if (s.split(' plex://')[0].encode('utf-8') not in
+                            [x.title.encode('utf-8') for x in coll_update.items()]):
+                            print(f'Adding "{s.split(' plex://')[0]}" to "{coll_update.title}" collection...')
+                            try:
+                                # Find library item using plex guid, if provided
+                                new_items.append(plex_libraries[lib[0]].getGuid(f"plex://{s.split(' plex://')[-1]}"))
+                            except plexapi.exceptions.NotFound:
+                                try:
+                                    # Fall back to item name, library.get(title) doesn't always return the
+                                    # actual item with exact title (eg Horror-of-Dracula for Drácula)
+                                    new_items.append(plex_libraries[lib[0]].get(s.split(' plex://')[0]))
+                                except plexapi.exceptions.NotFound:
+                                    print(
+                                        f'\033[33mItem "{s.split(' plex://')[0]}" '
+                                        f'not found in "{plex_libraries[lib[0]].title}" library\033[0m.'
+                                    )
                     if len(new_items) > 0:
                         coll_update.addItems(items=new_items)
+                    # Remove items from collection that are not in config list
                     remove_items = []
-                    for s in map(lambda x: x.title, coll_update.items()):
-                        if (s.split(' tmdb-')[0].encode('utf-8') not in
-                            map(
-                                lambda x: x.split(' tmdb-')[0].encode('utf-8'),
-                                self.collections_config[lib[0]][coll_update.title]["items"]
-                            )
+                    for s in coll_update.items():
+                        if (s.title.split(' plex://')[0].encode('utf-8') not in
+                            [
+                                x.split(' plex://')[0].encode('utf-8')
+                                for x in self.collections_config[lib[0]][coll_update.title]["items"]
+                            ]
                         ):
-                            print(f'Removing {s} from "{coll_update.title}" collection...')
-                            # library.get(title) doesn't always return the
-                            # actual item with exact title (eg Horror-of-Dracula for Drácula),
-                            # so find match in full search
-                            remove_items.append(
-                                next(x for x in plex_libraries[lib[0]].search(title=s.split(' tmdb-')[0])
-                                     if x.title == s.split(' tmdb-')[0])
-                            )
+                            print(f'Removing "{s.title}" from "{coll_update.title}" collection...')
+                            remove_items.append(plex_libraries[lib[0]].getGuid(s.guid))
+                            # # library.get(title) doesn't always return the
+                            # # actual item with exact title (eg Horror-of-Dracula for Drácula),
+                            # # so find match in full search
+                            # remove_items.append(
+                            #     next(x for x in plex_libraries[lib[0]].search(title=s.split(' plex://')[0])
+                            #          if x.title == s.split(' plex://')[0])
+                            # )
                     if len(remove_items) > 0:
                         coll_update.removeItems(items=remove_items)
-                # Update sort title
-                if ("titleSort" in self.collections_config[lib[0]][coll_update.title] and
-                    self.collections_config[lib[0]][coll_update.title]["titleSort"]):
-                    coll_update.editSortTitle(
-                        sortTitle=self.collections_config[lib[0]][coll_update.title]["titleSort"]
+                    # Update sort title
+                    if ("titleSort" in self.collections_config[lib[0]][coll_update.title] and
+                        self.collections_config[lib[0]][coll_update.title]["titleSort"]):
+                        coll_update.editSortTitle(
+                            sortTitle=self.collections_config[lib[0]][coll_update.title]["titleSort"]
+                        )
+                    # Add/remove labels according to config list
+                    if ("labels" in self.collections_config[lib[0]][coll_update.title] and
+                        self.collections_config[lib[0]][coll_update.title]["labels"]):
+                        new_labels = []
+                        for s in self.collections_config[lib[0]][coll_update.title]["labels"]:
+                            if s not in map(lambda x: x.tag, coll_update.labels):
+                                print(f'Adding "{s}" label to "{coll_update.title}" collection...')
+                                new_labels.append(s)
+                        if len(new_labels) > 0:
+                            coll_update.addLabel(labels=new_labels)
+                        remove_labels = []
+                        for s in map(lambda x: x.tag, coll_update.labels):
+                            if s not in self.collections_config[lib[0]][coll_update.title]["labels"]:
+                                print(f'Removing "{s}" label from "{coll_update.title}" collection...')
+                                remove_labels.append(s)
+                        if len(remove_labels) > 0:
+                            coll_update.removeLabel(labels=remove_labels)
+                    # Update poster
+                    if ("poster" in self.collections_config[lib[0]][coll_update.title] and
+                        self.collections_config[lib[0]][coll_update.title]["poster"]):
+                        coll_update.uploadPoster(
+                            filepath=self.collections_config[lib[0]][coll_update.title]["poster"]
+                        )
+                    # Update collection mode
+                    if ("mode" in self.collections_config[lib[0]][coll_update.title] and
+                        self.collections_config[lib[0]][coll_update.title]["mode"]):
+                        coll_update.modeUpdate(mode=self.collections_config[lib[0]][coll_update.title]["mode"])
+                    # Update collection order
+                    if ("sort" in self.collections_config[lib[0]][coll_update.title] and
+                        self.collections_config[lib[0]][coll_update.title]["sort"]):
+                        coll_update.sortUpdate(sort=self.collections_config[lib[0]][coll_update.title]["sort"])
+                else:
+                    print(
+                        f'\033[31mNo items found in config. Removing collection "{coll_update.title}" '
+                        f'from "{plex_libraries[lib[0]]}" library.\033[0m'
                     )
-                # Add/remove labels according to config list
-                if ("labels" in self.collections_config[lib[0]][coll_update.title] and
-                    self.collections_config[lib[0]][coll_update.title]["labels"]):
-                    new_labels = []
-                    for s in self.collections_config[lib[0]][coll_update.title]["labels"]:
-                        if s not in map(lambda x: x.tag, coll_update.labels):
-                            print(f'Adding {s} label to "{coll_update.title}" collection...')
-                            new_labels.append(s)
-                    if len(new_labels) > 0:
-                        coll_update.addLabel(labels=new_labels)
-                    remove_labels = []
-                    for s in map(lambda x: x.tag, coll_update.labels):
-                        if s not in self.collections_config[lib[0]][coll_update.title]["labels"]:
-                            print(f'Removing {s} label from "{coll_update.title}" collection...')
-                            remove_labels.append(s)
-                    if len(remove_labels) > 0:
-                        coll_update.removeLabel(labels=remove_labels)
-                # Update poster
-                if ("poster" in self.collections_config[lib[0]][coll_update.title] and
-                    self.collections_config[lib[0]][coll_update.title]["poster"]):
-                    coll_update.uploadPoster(
-                        filepath=self.collections_config[lib[0]][coll_update.title]["poster"]
-                    )
-                # Update collection mode
-                if ("mode" in self.collections_config[lib[0]][coll_update.title] and
-                    self.collections_config[lib[0]][coll_update.title]["mode"]):
-                    coll_update.modeUpdate(mode=self.collections_config[lib[0]][coll_update.title]["mode"])
-                # Update collection order
-                if ("sort" in self.collections_config[lib[0]][coll_update.title] and
-                    self.collections_config[lib[0]][coll_update.title]["sort"]):
-                    coll_update.sortUpdate(sort=self.collections_config[lib[0]][coll_update.title]["sort"])
+                    coll_update.delete()
 
-    def dump_collections(self, plex_libraries: dict[str, LibrarySection]):
+    def dump_collections(self, plex_libraries: dict[str, LibrarySection]) -> Path:
         """
         Dump existing collections to YAML files.
 
         Args:
             plex_libraries (dict[str, LibrarySection]): {library name: Plex library object}
+
+        Returns:
+            Path: Output directory where YAML files are saved.
         """
         for library in plex_libraries.items():
             library_collections: list[Collection] = library[1].collections()
@@ -303,46 +325,64 @@ class PlexCollectionMaker:
                     ]
                 ]
             ] = {}
-            lib_dicts['collections'] = {}
+            lib_dicts["collections"] = {}
             for c in library_collections:
-                lib_dicts['collections'][c.title] = {}
-                lib_dicts['collections'][c.title]['titleSort'] = c.titleSort
-                lib_dicts['collections'][c.title]['labels'] = [*map(lambda x: x.tag, c.labels)]
+                lib_dicts["collections"][c.title] = {}
+                lib_dicts["collections"][c.title]["titleSort"] = c.titleSort
+                lib_dicts["collections"][c.title]["labels"] = [x.tag for x in c.labels]
                 # lib_dicts['collections'][c.title]['poster'] = c.posterUrl
-                lib_dicts['collections'][c.title]['mode'] = c.collectionMode
-                lib_dicts['collections'][c.title]['sort'] = c.collectionSort
-                lib_dicts['collections'][c.title]['items'] = [*map(lambda x: x.title, c.items())]
-            print(lib_dicts)
+                lib_dicts["collections"][c.title]["mode"] = c.collectionMode
+                lib_dicts["collections"][c.title]["sort"] = c.collectionSort
+                lib_dicts["collections"][c.title]["items"] = [f"{x.title} {x.guid}" for x in c.items()]
 
-            # test_dict = {
-            #     'collections': {
-            #         'collection1': {
-            #             'titleSort': 'titleSort',
-            #             'labels': [
-            #                 'label1',
-            #                 'label2',
-            #                 'label3'
-            #             ],
-            #             'poster': 'poster',
-            #             'mode': 'mode',
-            #             'sort': 'sort',
-            #             'items': [
-            #                 'item1',
-            #                 'item2',
-            #             ]
-            #         },
-            #         'collection2': {}
-            #     }
-            # }
-            os.makedirs("./config_dump2", exist_ok=True)
-            config_file = Path(f'./config_dump2/{library[0].replace(" ", "_")}_collections.yml')
-            # config_file.mkdir(parents=True, exist_ok=True)
+            # # lib_dicts = {
+            # #     'collections': {
+            # #         'collection1': {
+            # #             'titleSort': 'titleSort',
+            # #             'labels': [
+            # #                 'label1',
+            # #                 'label2',
+            # #                 'label3'
+            # #             ],
+            # #             'poster': 'poster',
+            # #             'mode': 'mode',
+            # #             'sort': 'sort',
+            # #             'items': [
+            # #                 'item1',
+            # #                 'item2',
+            # #             ]
+            # #         },
+            # #         'collection2': {}
+            # #     }
+            # # }
+            os.makedirs("./config_dump", exist_ok=True)
+            config_file = Path(f'./config_dump/{library[0].replace(" ", "_")}_collections.yml')
             with open(config_file.as_posix(), "w", encoding="utf-8") as f:
                 yaml.dump(lib_dicts, f)
         return config_file.parent.resolve()
 
+    def dump_libraries(self, plex_libraries: dict[str, LibrarySection]) -> Path:
+        """
+        Dump all library items to YAML files.
 
-def main(edit_collections: bool = False, dump_collections: bool = False) -> None:
+        Args:
+            plex_libraries (dict[str, LibrarySection]): {library name: Plex library object}
+
+        Returns:
+            Path: Output directory where YAML files are saved.
+        """
+        for library in plex_libraries.items():
+            lib_dict: dict[str, list[str]] = {}
+            lib_dict[library[0]] = [f"{x.title} {x.guid}" for x in library[1].all()]
+
+            os.makedirs("./library_dump", exist_ok=True)
+            library_dump_file = Path(f'./library_dump/{library[0].replace(" ", "_")}.yml')
+            with open(library_dump_file.as_posix(), "w", encoding="utf-8") as f:
+                yaml.dump(lib_dict, f)
+        return library_dump_file.parent.resolve()
+
+
+def main(edit_collections: bool = False, dump_collections: bool = False, dump_libraries: bool = False) -> None:
     """
     Function to run script logic.
     """
@@ -373,9 +413,15 @@ def main(edit_collections: bool = False, dump_collections: bool = False) -> None
         stem = pcm.dump_collections(plex_libraries=plex_libraries)
         print(f'Complete. YAML files at "{stem}".')
 
+    if dump_libraries:
+        print("Dumping existing library items to file...")
+        stem = pcm.dump_libraries(plex_libraries=plex_libraries)
+        print(f'Complete. YAML files at "{stem}".')
+
 
 if __name__ == "__main__":
     main(
-        edit_collections=True,
-        dump_collections=False
+        edit_collections=False,
+        dump_collections=False,
+        dump_libraries=True
     )

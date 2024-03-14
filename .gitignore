@@ -9,6 +9,7 @@ venv.bak/
 config.yml
 collection_configs/
 config_dump*/
+library_dump/
 
 # Images
 *.jpg
