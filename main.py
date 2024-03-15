@@ -53,9 +53,13 @@ class PlexCollectionMaker:
             # Only local ip given
             self.plex_pub_ip = None
 
-        # TODO clean/ensure http:// at start of ip address
-        # print(self.plex_ip[:7])
-
+        # Ensure http:// at start of ip address
+        for ip in [self.plex_ip, self.plex_pub_ip]:
+            if ip and (ip[:7] != "http://") and (ip[:8] != "https://"):
+                sys.exit(
+                    'Invalid IP address. Ensure IP address begins "http://". '
+                    'Please check the server IP addresses in .env, and consult the README.'
+                )
 
         with open("./config.yml", encoding="utf-8") as config_file:
             try:
@@ -321,23 +325,7 @@ class PlexCollectionMaker:
         """
         for library in plex_libraries.items():
             library_collections: list[Collection] = library[1].collections()
-            lib_dicts: dict[
-                str, dict[
-                    str, dict[
-                        str, Union[str, list[str]]
-                    ]
-                ]
-            ] = {}
-            lib_dicts["collections"] = {}
-            for c in library_collections:
-                lib_dicts["collections"][c.title] = {}
-                lib_dicts["collections"][c.title]["titleSort"] = c.titleSort
-                lib_dicts["collections"][c.title]["labels"] = [x.tag for x in c.labels]
-                # lib_dicts['collections'][c.title]['poster'] = c.posterUrl
-                lib_dicts["collections"][c.title]["mode"] = c.collectionMode
-                lib_dicts["collections"][c.title]["sort"] = c.collectionSort
-                lib_dicts["collections"][c.title]["items"] = [f"{x.title} {x.guid}" for x in c.items()]
-
+            lib_dicts: dict[str, dict[str, dict[str, Union[str, list[str]]]]] = {}
             # # lib_dicts = {
             # #     'collections': {
             # #         'collection1': {
@@ -358,34 +346,114 @@ class PlexCollectionMaker:
             # #         'collection2': {}
             # #     }
             # # }
+
+            lib_dicts["collections"] = {}
+            for c in library_collections:
+                lib_dicts["collections"][c.title] = {}
+                lib_dicts["collections"][c.title]["titleSort"] = c.titleSort
+                lib_dicts["collections"][c.title]["labels"] = [x.tag for x in c.labels]
+                # lib_dicts['collections'][c.title]['poster'] = c.posterUrl
+                lib_dicts["collections"][c.title]["mode"] = c.collectionMode
+                lib_dicts["collections"][c.title]["sort"] = c.collectionSort
+                lib_dicts["collections"][c.title]["items"] = [f"{x.title} {x.guid}" for x in c.items()]
+
             os.makedirs("./config_dump", exist_ok=True)
             config_file = Path(f'./config_dump/{library[0].replace(" ", "_")}_collections.yml')
             with open(config_file.as_posix(), "w", encoding="utf-8") as f:
                 yaml.dump(lib_dicts, f)
         return config_file.parent.resolve()
 
-    def dump_libraries(self, plex_libraries: dict[str, LibrarySection]) -> Path:
+    def dump_libraries(self, plex_libraries: dict[str, LibrarySection], all_fields: bool = False) -> Path:
         """
         Dump all library items to YAML files.
 
         Args:
             plex_libraries (dict[str, LibrarySection]): {library name: Plex library object}
+            all_fields (bool, optional): Include all locked fields for each library item.
 
         Returns:
             Path: Output directory where YAML files are saved.
         """
         for library in plex_libraries.items():
-            lib_dict: dict[str, list[str]] = {}
-            lib_dict[library[0]] = [f"{x.title} {x.guid}" for x in library[1].all()]
+
+            if all_fields:
+                lib_dict: dict[str, dict[Union[str, list[str]]]] = {}
+                # # lib_dicts = {
+                # #     'library': {
+                # #         'title1 guid1': {
+                # #             'titleSort': 'titleSort',
+                # #             'originalTitle': 'originalTitle',
+                # #             'contentRating': 'contentRating',
+                # #             'year': 'year',
+                # #             'studio': 'studio',
+                # #             'originallyAvailableAt': 'originallyAvailableAt',
+                # #             'summary': 'summary',
+                # #             'genre': [
+                # #                 'genre1',
+                # #                 'genre2',
+                # #                 'genre3'
+                # #             ],
+                # #             'labels': [
+                # #                 'label1',
+                # #                 'label2'
+                # #             ],
+                # #             'collections': [
+                # #                 'collection1',
+                # #                 'collection2',
+                # #             ]
+                # #         },
+                # #         'title2 guid2': {}
+                # #     }
+                # # }
+
+                lib_dict[library[0]] = {}
+                item: Union[Movie, Show]
+                for item in library[1].all():
+                    title = f"{item.title} {item.guid}"
+                    lib_dict[library[0]][title] = {}
+
+                    fields = [x.name for x in item.fields]
+                    if "titleSort" in fields:
+                        lib_dict[library[0]][title]["titleSort"] = item.titleSort
+                    if "originalTitle" in fields:
+                        lib_dict[library[0]][title]["originalTitle"] = item.originalTitle
+                    if "contentRating" in fields:
+                        lib_dict[library[0]][title]["contentRating"] = item.contentRating
+                    if "year" in fields:
+                        lib_dict[library[0]][title]["year"] = item.year
+                    if "studio" in fields:
+                        lib_dict[library[0]][title]["studio"] = item.studio
+                    if "originallyAvailableAt" in fields:
+                        lib_dict[library[0]][title]["originallyAvailableAt"] = item.originallyAvailableAt
+                    if "summary" in fields:
+                        lib_dict[library[0]][title]["summary"] = item.summary
+                    if "genre" in fields:
+                        lib_dict[library[0]][title]["genres"] = [x.tag for x in item.genres]
+                    if "label" in fields:
+                        lib_dict[library[0]][title]["labels"] = [x.tag for x in item.labels]
+                    if "collection" in fields:
+                        lib_dict[library[0]][title]["collections"] = [x.tag for x in item.collections]
+
+            else: # Just a list of movie/show titles and guids
+                lib_dict: dict[str, list[str]] = {}
+                lib_dict[library[0]] = [f"{x.title} {x.guid}" for x in library[1].all()]
+
 
             os.makedirs("./library_dump", exist_ok=True)
-            library_dump_file = Path(f'./library_dump/{library[0].replace(" ", "_")}.yml')
+            library_dump_file = Path(
+                f'./library_dump/{library[0].replace(" ", "_")}{"_(all_fields)" if all_fields else ""}.yml'
+            )
             with open(library_dump_file.as_posix(), "w", encoding="utf-8") as f:
                 yaml.dump(lib_dict, f)
         return library_dump_file.parent.resolve()
 
 
-def main(edit_collections: bool = False, dump_collections: bool = False, dump_libraries: bool = False) -> None:
+def main(
+    edit_collections: bool = False,
+    dump_collections: bool = False,
+    dump_libraries: bool = False,
+    all_fields: bool = False
+) -> None:
     """
     Function to run script logic.
     """
@@ -415,9 +483,14 @@ def main(edit_collections: bool = False, dump_collections: bool = False, dump_li
 
     if dump_libraries:
         print("Dumping existing library items to file...")
-        stem = pcm.dump_libraries(plex_libraries=plex_libraries)
+        stem = pcm.dump_libraries(plex_libraries=plex_libraries, all_fields=all_fields)
         print(f'Complete. YAML files at "{stem}".')
 
 
 if __name__ == "__main__":
-    main(edit_collections=False, dump_collections=False, dump_libraries=True)
+    main(
+        edit_collections=False,
+        dump_collections=False,
+        dump_libraries=True,
+        all_fields=True
+    )
