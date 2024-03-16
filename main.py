@@ -1,5 +1,6 @@
 import os
 import sys
+import argparse
 from pathlib import Path
 from typing import Union
 
@@ -488,9 +489,17 @@ def main(
 
 
 if __name__ == "__main__":
+    argparse.ArgumentParser()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-e", "--exclude-edit", action="store_false", help="don't create or edit collections")
+    parser.add_argument("-c", "--dump-collections", action="store_true", help="dump collections to file")
+    parser.add_argument("-l", "--dump-libraries", action="store_true", help="dump libraries to file")
+    parser.add_argument("-a", "--all-fields", action="store_true", help="include all fields when dumping libraries")
+    args = parser.parse_args()
+
     main(
-        edit_collections=False,
-        dump_collections=False,
-        dump_libraries=True,
-        all_fields=True
+        edit_collections=args.exclude_edit,
+        dump_collections=args.dump_collections,
+        dump_libraries=args.dump_libraries,
+        all_fields=args.all_fields
     )

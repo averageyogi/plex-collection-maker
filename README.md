@@ -40,6 +40,20 @@ Your Plex token can be found **[here](https://support.plex.tv/articles/204059436
 
 ## Usage
 
+To make and/or sync existing collections
+
 ```bash
 python main.py
+```
+
+You can also dump lists of existing collections to file, and exclude collection editing
+
+```bash
+python main.py --dump-collections --exclude-edit
+```
+
+As well as dump the entire contents of existing existing libraries to file
+
+```bash
+python main.py --dump-libraries --all-fields --exclude-edit
 ```
