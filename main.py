@@ -54,7 +54,7 @@ class PlexCollectionMaker:
             # Only local ip given
             self.plex_pub_ip = None
 
-        # Ensure http:// at start of ip address
+        # Ensure "http://" at start of ip address
         for ip in [self.plex_ip, self.plex_pub_ip]:
             if ip and (ip[:7] != "http://") and (ip[:8] != "https://"):
                 sys.exit(
@@ -72,7 +72,7 @@ class PlexCollectionMaker:
         self.collections_config = {}
         for lib in config_yaml["libraries"]:
             for coll_file in config_yaml["libraries"][lib]["collection_files"]:
-                with open(coll_file["file"], encoding="utf-8") as collection_config_file:
+                with open(coll_file["file"], "r", encoding="utf-8") as collection_config_file:
                     try:
                         colls = yaml.safe_load(collection_config_file)
                         self.collections_config[lib] = colls["collections"]
@@ -136,6 +136,7 @@ class PlexCollectionMaker:
         for library in plex_libraries.items():
             collections_to_update[library[0]] = []
             for collection_title in [*self.collections_config[library[0]].keys()]:
+                explained_guid = False
                 try:
                     collection: Collection = library[1].collection(collection_title)
                     collections_to_update[library[0]].append(collection)
@@ -155,8 +156,18 @@ class PlexCollectionMaker:
                                     # Fall back to item name, library.get(title) doesn't always return the
                                     # actual item with exact title (eg Horror-of-Dracula for Drácula)
                                     collection_items.append(library[1].get(item.split(" plex://")[0]))
+                                    if not explained_guid:
+                                        print(
+                                            "\033[33mGUID not available, incorrect matches may occur.\033[0m "
+                                            "If incorrect items added to collection, consider dumping library "
+                                            "and using given title from output file."
+                                        )
+                                        explained_guid = True
                                 except plexapi.exceptions.NotFound:
-                                    print(f'\033[33mItem "{item}" not found in "{library[0]}" library.\033[0m')
+                                    print(
+                                        f'\033[33mItem "{item.split(" plex://")[0]}" not found in '
+                                        f'"{library[0]}" library.\033[0m'
+                                    )
                         if len(collection_items) > 0:
                             collection: Collection = library[1].createCollection(
                                 title=collection_title, items=collection_items
@@ -228,6 +239,7 @@ class PlexCollectionMaker:
                 ):
                     # Add new items to collection that are in config, but not collection
                     new_items = []
+                    explained_guid = False
                     s: Movie
                     for s in self.collections_config[lib[0]][coll_update.title]["items"]:
                         if (s.split(" plex://")[0].encode("utf-8") not in
@@ -242,6 +254,13 @@ class PlexCollectionMaker:
                                     # Fall back to item name, library.get(title) doesn't always return the
                                     # actual item with exact title (eg Horror-of-Dracula for Drácula)
                                     new_items.append(plex_libraries[lib[0]].get(s.split(" plex://")[0]))
+                                    if not explained_guid:
+                                        print(
+                                            "\033[33mGUID not available, incorrect matches may occur.\033[0m "
+                                            "If incorrect items added to collection, consider dumping library "
+                                            "and using given title from output file."
+                                        )
+                                        explained_guid = True
                                 except plexapi.exceptions.NotFound:
                                     print(
                                         f'\033[33mItem "{s.split(" plex://")[0]}" '
@@ -489,7 +508,6 @@ def main(
 
 
 if __name__ == "__main__":
-    argparse.ArgumentParser()
     parser = argparse.ArgumentParser()
     parser.add_argument("-e", "--exclude-edit", action="store_false", help="don't create or edit collections")
     parser.add_argument("-c", "--dump-collections", action="store_true", help="dump collections to file")
