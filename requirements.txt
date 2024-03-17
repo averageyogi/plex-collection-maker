@@ -2,3 +2,4 @@ PlexAPI #==4.15.6
 python-dotenv
 pyyaml
 requests #==2.31.0
+tqdm

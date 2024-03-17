@@ -11,6 +11,7 @@ from plexapi.library import LibrarySection
 from plexapi.collection import Collection
 from plexapi.video import Movie, Show
 import requests
+from tqdm import tqdm
 import yaml
 
 
@@ -179,6 +180,20 @@ class PlexCollectionMaker:
                                 collection.editSortTitle(
                                     sortTitle=self.collections_config[library[0]][collection_title]["titleSort"]
                                 )
+                            # Set content rating
+                            if ("contentRating" in self.collections_config[library[0]][collection_title]
+                                and self.collections_config[library[0]][collection_title]["contentRating"]
+                            ):
+                                collection.editContentRating(
+                                    contentRating=self.collections_config[library[0]][collection_title]["contentRating"]
+                                )
+                            # Set summary
+                            if ("summary" in self.collections_config[library[0]][collection_title]
+                                and self.collections_config[library[0]][collection_title]["summary"]
+                            ):
+                                collection.editSummary(
+                                    summary=self.collections_config[library[0]][collection_title]["summary"]
+                                )
                             # Add labels according to config list
                             if ("labels" in self.collections_config[library[0]][collection_title]
                                 and self.collections_config[library[0]][collection_title]["labels"]
@@ -293,6 +308,20 @@ class PlexCollectionMaker:
                         coll_update.editSortTitle(
                             sortTitle=self.collections_config[lib[0]][coll_update.title]["titleSort"]
                         )
+                    # Update content rating
+                    if ("contentRating" in self.collections_config[lib[0]][coll_update.title]
+                        and self.collections_config[lib[0]][coll_update.title]["contentRating"]
+                    ):
+                        coll_update.editContentRating(
+                            contentRating=self.collections_config[lib[0]][coll_update.title]["contentRating"]
+                        )
+                    # Update summary
+                    if ("summary" in self.collections_config[lib[0]][coll_update.title]
+                        and self.collections_config[lib[0]][coll_update.title]["summary"]
+                    ):
+                        coll_update.editSummary(
+                            summary=self.collections_config[lib[0]][coll_update.title]["summary"]
+                        )
                     # Add/remove labels according to config list
                     if ("labels" in self.collections_config[lib[0]][coll_update.title]
                         and self.collections_config[lib[0]][coll_update.title]["labels"]
@@ -367,14 +396,39 @@ class PlexCollectionMaker:
             # #     }
             # # }
 
+            mode_dict = {
+                -1: "default",
+                0: "hide",
+                1: "hideItems",
+                2: "showItems"
+            }
+            sort_dict = {
+                0: "release",
+                1: "alpha",
+                2: "custom"
+            }
             lib_dicts["collections"] = {}
-            for c in library_collections:
+            for c in tqdm(
+                library_collections,
+                total=len(library_collections),
+                ascii=" ░▒█",
+                ncols=100,
+                desc=library[0],
+                unit="collection"
+            ):
                 lib_dicts["collections"][c.title] = {}
-                lib_dicts["collections"][c.title]["titleSort"] = c.titleSort
-                lib_dicts["collections"][c.title]["labels"] = [x.tag for x in c.labels]
+                fields = [x.name for x in c.fields]
+                if "titleSort" in fields:
+                    lib_dicts["collections"][c.title]["titleSort"] = c.titleSort
+                if "label" in fields:
+                    lib_dicts["collections"][c.title]["labels"] = [x.tag for x in c.labels]
+                if "contentRating" in fields:
+                    lib_dicts["collections"][c.title]["contentRating"] = c.contentRating
+                if "summary" in fields:
+                    lib_dicts["collections"][c.title]["summary"] = c.summary
                 # lib_dicts['collections'][c.title]['poster'] = c.posterUrl
-                lib_dicts["collections"][c.title]["mode"] = c.collectionMode
-                lib_dicts["collections"][c.title]["sort"] = c.collectionSort
+                lib_dicts["collections"][c.title]["mode"] = mode_dict[c.collectionMode]
+                lib_dicts["collections"][c.title]["sort"] = sort_dict[c.collectionSort]
                 lib_dicts["collections"][c.title]["items"] = [f"{x.title} {x.guid}" for x in c.items()]
 
             os.makedirs("./config_dump", exist_ok=True)
@@ -395,7 +449,6 @@ class PlexCollectionMaker:
             Path: Output directory where YAML files are saved.
         """
         for library in plex_libraries.items():
-
             if all_fields:
                 lib_dict: dict[str, dict[Union[str, list[str]]]] = {}
                 # # lib_dicts = {
@@ -428,7 +481,14 @@ class PlexCollectionMaker:
 
                 lib_dict[library[0]] = {}
                 item: Union[Movie, Show]
-                for item in library[1].all():
+                for item in tqdm(
+                    library[1].all(),
+                    total=library[1].totalSize,
+                    ascii=" ░▒█",
+                    ncols=100,
+                    desc=library[0],
+                    unit=library[1].type
+                ):
                     title = f"{item.title} {item.guid}"
                     lib_dict[library[0]][title] = {}
 
@@ -456,8 +516,16 @@ class PlexCollectionMaker:
 
             else: # Just a list of movie/show titles and guids
                 lib_dict: dict[str, list[str]] = {}
-                lib_dict[library[0]] = [f"{x.title} {x.guid}" for x in library[1].all()]
-
+                lib_dict[library[0]] = [
+                    f"{x.title} {x.guid}" for x in tqdm(
+                        library[1].all(),
+                        total=library[1].totalSize,
+                        ascii=" ░▒█",
+                        ncols=100,
+                        desc=library[0],
+                        unit=library[1].type
+                    )
+                ]
 
             os.makedirs("./library_dump", exist_ok=True)
             library_dump_file = Path(

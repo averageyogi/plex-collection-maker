@@ -38,6 +38,10 @@ Public IP is optional if you will only run script locally to the Plex server.
 
 Your Plex token can be found **[here](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)**
 
+From the XML information of a library item (the same place the Plex token was found) you can find the Plex GUID of
+that specific library item to use for accurate identification. Otherwise, you can use the provided library dumping command
+to get a list of the names and GUIDs for all items in the provided libraries.
+
 ## Usage
 
 To make and/or sync existing collections
