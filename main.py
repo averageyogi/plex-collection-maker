@@ -140,9 +140,10 @@ class PlexCollectionMaker:
                 explained_guid = False
                 try:
                     collection: Collection = library[1].collection(collection_title)
+                    # If the collection was found, add to list to update/sync and continue to next in config
                     collections_to_update[library[0]].append(collection)
                 except plexapi.exceptions.NotFound:
-                    # Add items according to config list
+                    # If the collection wasn't found in the library, add items according to config list
                     print(f'Creating "{collection_title}" collection in "{library[0]}" library...')
                     collection_items: list[Movie | Show] = []
                     if ("items" in self.collections_config[library[0]][collection_title]
@@ -170,6 +171,7 @@ class PlexCollectionMaker:
                                         f'"{library[0]}" library.\033[0m'
                                     )
                         if len(collection_items) > 0:
+                            # Create collection
                             collection: Collection = library[1].createCollection(
                                 title=collection_title, items=collection_items
                             )
@@ -248,6 +250,12 @@ class PlexCollectionMaker:
         """
         for lib in collections_to_update.items():
             for coll_update in lib[1]:
+                if coll_update.smart:
+                    print(
+                        f'\033[31mUnable to create or update smart collections. '
+                        f'Ignoring "{coll_update.title}" collection.\033[0m'
+                    )
+                    continue
                 print(f'Syncing "{coll_update.title}" in "{lib[0]}" library to config...')
                 if ("items" in self.collections_config[lib[0]][coll_update.title]
                     and self.collections_config[lib[0]][coll_update.title]["items"]
@@ -418,6 +426,7 @@ class PlexCollectionMaker:
             ):
                 lib_dicts["collections"][c.title] = {}
                 fields = [x.name for x in c.fields]
+                lib_dicts["collections"][c.title]["smart"] = c.smart
                 if "titleSort" in fields:
                     lib_dicts["collections"][c.title]["titleSort"] = c.titleSort
                 if "label" in fields:
