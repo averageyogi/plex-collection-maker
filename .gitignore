@@ -15,6 +15,8 @@ library_dump/
 *.jpg
 *.png
 *.gif
+images/*
+!images/*.jpg
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

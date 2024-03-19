@@ -1,6 +1,10 @@
 # plex-collection-maker
 
-Create a collection in TV and Movie libraries from a text file list of shows or movies.
+Create a collection in TV and Movie libraries from a text file list of shows or movies. This allows you to back-up and
+easily recreate standard collections in your plex library.
+
+This is a initially manual process to build the collections,
+for an automatic builder using external lists see **[PMM](https://github.com/meisnate12/Plex-Meta-Manager)**.
 
 ## Setup
 
@@ -32,17 +36,30 @@ Install dependencies
 pip install -r requirements.txt
 ```
 
-Create .env file from [.env.example](./.env.example) with Plex credentials (server IP address, api token, and library names).
+Create .env file from [.env.example](./.env.example) with Plex credentials
+(server IP address, api token, and library names).
 
 Public IP is optional if you will only run script locally to the Plex server.
 
-Your Plex token can be found **[here](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)**
+Your Plex token can be found
+**[here](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)**
 
 From the XML information of a library item (the same place the Plex token was found) you can find the Plex GUID of
-that specific library item to use for accurate identification. Otherwise, you can use the provided library dumping command
-to get a list of the names and GUIDs for all items in the provided libraries.
+that specific library item to use for accurate identification. Otherwise, you can use the provided library dumping
+command to get a list of the names and GUIDs for all items in the provided libraries.
 
 ## Usage
+
+Below are examples of collection configuration files. Only the collection title header and items list are necessary to
+create a collection, but there are many other options available.
+
+These are the outputs of the dump functions and include the Plex GUID for each item. These are also not necessary, but
+should ensure accurate item identification when adding to a collection.
+
+<p align="center">
+    <img src="./images/example_movie_config.jpg" alt="movie config example" width="45%"/>
+    <img src="./images/example_show_config.jpg" alt="show config example" width="45%"/>
+</p>
 
 To make and/or sync existing collections
 
