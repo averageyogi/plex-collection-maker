@@ -48,6 +48,11 @@ From the XML information of a library item (the same place the Plex token was fo
 that specific library item to use for accurate identification. Otherwise, you can use the provided library dumping
 command to get a list of the names and GUIDs for all items in the provided libraries.
 
+Create a config.yml file from [config.template.yml](./config.template.yml) with the paths to your individual collection
+configuration files. You will have one config.yml file, but you can have as many collection config files as you want
+per library. Be aware, if collections in separate files for the same library have the same name, the collection config
+in the earlier file will be discarded.
+
 ## Usage
 
 Below are examples of collection configuration files. Only the collection title header and items list are necessary to

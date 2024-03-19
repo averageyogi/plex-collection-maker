@@ -76,7 +76,10 @@ class PlexCollectionMaker:
                 with open(coll_file["file"], "r", encoding="utf-8") as collection_config_file:
                     try:
                         colls = yaml.safe_load(collection_config_file)
-                        self.collections_config[lib] = colls["collections"]
+                        if self.collections_config.get(lib):
+                            self.collections_config[lib].update(colls["collections"])
+                        else:
+                            self.collections_config[lib] = colls["collections"]
                     except yaml.YAMLError as err:
                         print(err)
 
@@ -152,6 +155,7 @@ class PlexCollectionMaker:
                         for item in self.collections_config[library[0]][collection_title]["items"]:
                             try:
                                 # Find library item using plex guid, if provided
+                                #TODO try adding tmdb, imdb, and tvdb guids
                                 collection_items.append(library[1].getGuid(f"plex://{item.split(' plex://')[-1]}"))
                             except plexapi.exceptions.NotFound:
                                 try:
@@ -309,6 +313,7 @@ class PlexCollectionMaker:
                             # )
                     if len(remove_items) > 0:
                         coll_update.removeItems(items=remove_items)
+                    #TODO break up with single edit?
                     # Update sort title
                     if ("titleSort" in self.collections_config[lib[0]][coll_update.title]
                         and self.collections_config[lib[0]][coll_update.title]["titleSort"]
