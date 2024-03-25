@@ -59,7 +59,8 @@ Below are examples of collection configuration files. Only the collection title 
 create a collection, but there are many other options available.
 
 These are the outputs of the dump functions and include the Plex GUID for each item. These are also not necessary, but
-should ensure accurate item identification when adding to a collection.
+should ensure accurate item identification when adding to a collection. IMDB, TMDB, and TVDB GUIDs can also be used for
+identification.
 
 <p align="center">
     <img src="./images/example_movie_config.jpg" alt="movie config example" width="45%"/>
