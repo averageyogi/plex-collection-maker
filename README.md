@@ -65,17 +65,37 @@ identification.
 ---
 Sample movie collection config
 
-<p align="center">
-    <img src="./images/example_movie_config2.png" alt="movie config example" width="93%"/>
-     <!-- width="45%" align="top"/> -->
-</p>
+```yaml
+collections:
+  Alien:
+    items:
+    - Alien (Director's Cut) {tmdb-348}
+    - Aliens (Special Edition) {tmdb-679}
+    - "Alien\xB3 (Assembly Cut) {tmdb-8077}"
+    - 'Alien: Resurrection (Special Edition) {tmdb-8078}'
+    mode: hide
+    sort: alpha
+  Halloween H20 Timeline:
+    items:
+    - Halloween {imdb-tt0077651}
+    - Halloween II {imdb-tt0082495}
+    - 'Halloween H20: 20 Years Later {imdb-tt0120694}'
+    mode: hideItems
+    sort: release
+    titleSort: Halloween Timeline 1
+  Halloween New Timeline:
+    items:
+    - Halloween plex://movie/5d77682854f42c001f8c2c48
+    - Halloween plex://movie/5d776c8796b655001fe33dc7
+    - Halloween Kills plex://movie/5e89cf50c3075b00416ee7d5
+    - Halloween Ends plex://movie/5e163304ef1040003f24871a
+    mode: hideItems
+    sort: release
+    titleSort: Halloween Timeline 2
+```
 
 ---
 Sample show collection config
-
-<p align="center">
-    <img src="./images/example_show_config2.png" alt="show config example" width="95%"/>
-</p>
 
 ```yaml
 collections:
