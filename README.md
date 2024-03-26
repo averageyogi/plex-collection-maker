@@ -3,7 +3,7 @@
 Create a collection in TV and Movie libraries from a text file list of shows or movies. This allows you to back-up and
 easily recreate standard collections in your plex library.
 
-This is a initially manual process to build the collections,
+This is an initially manual process to build the collections,
 for an automatic builder using external lists see **[PMM](https://github.com/meisnate12/Plex-Meta-Manager)**.
 
 ## Setup
@@ -62,10 +62,61 @@ These are the outputs of the dump functions and include the Plex GUID for each i
 should ensure accurate item identification when adding to a collection. IMDB, TMDB, and TVDB GUIDs can also be used for
 identification.
 
+---
+Sample movie collection config
+
 <p align="center">
-    <img src="./images/example_movie_config.jpg" alt="movie config example" width="45%"/>
-    <img src="./images/example_show_config.jpg" alt="show config example" width="45%"/>
+    <img src="./images/example_movie_config2.png" alt="movie config example" width="93%"/>
+     <!-- width="45%" align="top"/> -->
 </p>
+
+---
+Sample show collection config
+
+<p align="center">
+    <img src="./images/example_show_config2.png" alt="show config example" width="95%"/>
+</p>
+
+```yaml
+collections:
+  BBC Earth:
+    items:
+    - The Blue Planet plex://show/5d9c086a2df347001e3b1e5e
+    - Planet Earth plex://show/5d9c086b08fddd001f29a1df
+    - Life plex://show/5d9c08662192ba001f30ef67
+    - Frozen Planet plex://show/5d9c07f9e98e47001eb043cd
+    - Planet Earth II plex://show/5d9c080fcb3ffa001f1b1bd2
+    - Blue Planet II plex://show/5d9c08e546115600200adba2
+    mode: hide
+    sort: release
+  Peanuts:
+    items:
+    - Peanuts {tvdb-78225}
+    - Peanuts Motion Comics {tvdb-195611}
+    - Peanuts (2014) {tvdb-297291}
+    - Snoopy in Space {tvdb-367015}
+    - The Snoopy Show {tvdb-389478}
+    mode: hide
+    sort: release
+  Star Wars:
+    contentRating: TV-14
+    items:
+    - 'Star Wars: The Clone Wars {tmdb-4194}'
+    - 'Star Wars: Tales of the Jedi {tmdb-203085}'
+    - 'Star Wars: The Bad Batch {tmdb-105971}'
+    - Obi-Wan Kenobi {tmdb-92830}
+    - 'Star Wars: Rebels {tmdb-60554}'
+    - Andor {tmdb-83867}
+    - The Mandalorian {tmdb-82856}
+    - The Book of Boba Fett {tmdb-115036}
+    - Ahsoka {tmdb-114461}
+    - 'Star Wars: Resistance {tmdb-79093}'
+    - 'Star Wars: Visions {tmdb-114478}'
+    mode: hideItems
+    sort: alpha
+```
+
+---
 
 To make and/or sync existing collections
 
