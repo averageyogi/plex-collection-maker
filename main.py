@@ -2,7 +2,7 @@ import os
 import sys
 import argparse
 from pathlib import Path
-from typing import Literal, Union
+from typing import Union
 
 from dotenv import load_dotenv
 import plexapi.exceptions
@@ -10,6 +10,7 @@ from plexapi.server import PlexServer
 from plexapi.library import LibrarySection
 from plexapi.collection import Collection
 from plexapi.video import Movie, Show
+from plexapi.media import Guid
 import requests
 from tqdm import tqdm
 import yaml
@@ -126,39 +127,47 @@ class PlexCollectionMaker:
                 sys.exit(f'Library named "{library}" not found. Please check the config.yml, and consult the README.')
         return plex_libraries
 
-    def extract_guid(self, title: str, source: str, full: bool = False) -> Union[str, Literal[-1]]:
+    def get_item_guid(
+        self, title: str, lib_type: str, full: bool = False
+    ) -> str:
         """
-        Extract the id of GUID for the given source from the provided title.
+        Get available GUID from provided item string.
 
         Args:
             title (str): String that contains a GUID in the form {[source]-[id]}.
                 Plex guid is in the form plex://[type]/[id]
-            source (str): GUID source, one of "imdb", "tmdb", "tvdb", or "plex"
+            lib_type (str): either "movie" or "show" to determine available GUIDs
             full (bool, optional): If false, return only id ([type]/[id] if Plex).
-                If true, return full GUID, [source]://[id] (including type if Plex)
+                If true, return full GUID, [source]://[id] (including type if Plex).
+                Defaults to False.
 
-        Returns -1:
-            ValueError: source is not in ("imdb", "tmdb", "tvdb", "plex")
-            ValueError: source is not found in title
+        Raises:
+            plexapi.exceptions.UnknownType: if provided lib_type is neither "movie" or "show"
 
         Returns:
-            str: id from GUID for given source
+            str: the available GUID of the title, returns "-1" if no GUID is available
         """
-        if source not in ("imdb", "tmdb", "tvdb", "plex"):
-            # raise ValueError("Unknown source:", source)
-            return -1
-        if title.find(source) == -1:
-            # raise ValueError(f'Source "{source}" not found in title.')
-            return -1
+        #TODO check extract_guid() vs find()
+        try:
+            lib_sources = {
+                "movie": ["tmdb", "imdb", "plex"],
+                "show": ["tvdb", "tmdb", "plex"]
+            }
+            for source in lib_sources[lib_type]:
+                if title.find(source) == -1:
+                    # source not found in title
+                    continue
+                if source == "plex":
+                    guid = title.split(sep="plex://")[-1].split()[0]
+                else:
+                    guid = title.split(sep=f"{{{source}-")[-1].split(sep="}")[0]
 
-        if source == "plex":
-            guid = title.split(sep="plex://")[-1].split()[0]
-        else:
-            guid = title.split(sep=f"{{{source}-")[-1].split(sep="}")[0]
-
-        if full:
-            return f"{source}://{guid}"
-        return guid
+                if full:
+                    return f"{source}://{guid}"
+                return guid
+            return "-1"
+        except KeyError as exc:
+            raise plexapi.exceptions.UnknownType from exc
 
     def make_collections(self, plex_libraries: dict[str, LibrarySection]) -> dict[str, list[Collection]]:
         """
@@ -174,6 +183,7 @@ class PlexCollectionMaker:
         explained_guid = False
         for library in plex_libraries.items():
             collections_to_update[library[0]] = []
+            collection_title: str
             for collection_title in [*self.collections_config[library[0]].keys()]:
                 try:
                     collection: Collection = library[1].collection(collection_title)
@@ -186,31 +196,13 @@ class PlexCollectionMaker:
                     if ("items" in self.collections_config[library[0]][collection_title]
                         and self.collections_config[library[0]][collection_title]["items"]
                     ):
+                        item: str
                         for item in self.collections_config[library[0]][collection_title]["items"]:
                             try:
                                 # Find library item using plex guid, if provided
-                                #TODO check extract_guid() vs find()
-                                if library[1].type == "movie":
-                                    if (guid := self.extract_guid(item, "tmdb")) != -1:
-                                        collection_items.append(library[1].getGuid(f"tmdb://{guid}"))
-                                    elif (guid := self.extract_guid(item, "imdb")) != -1:
-                                        collection_items.append(library[1].getGuid(f"imdb://{guid}"))
-                                    else:
-                                        collection_items.append(library[1].getGuid(
-                                            f"plex://{item.split('plex://')[-1].split()[0]}"
-                                        ))
-                                elif library[1].type == "show":
-                                    if (guid := self.extract_guid(item, "tmdb")) != -1:
-                                        collection_items.append(library[1].getGuid(f"tmdb://{guid}"))
-                                    elif (guid := self.extract_guid(item, "tvdb")) != -1:
-                                        collection_items.append(library[1].getGuid(f"tvdb://{guid}"))
-                                    else:
-                                        collection_items.append(library[1].getGuid(
-                                            f"plex://{item.split('plex://')[-1].split()[0]}"
-                                        ))
-                                else:
-                                    raise plexapi.exceptions.UnknownType
-
+                                collection_items.append(
+                                    library[1].getGuid(self.get_item_guid(item, library[1].type, full=True))
+                                )
                             except plexapi.exceptions.NotFound:
                                 try:
                                     # Fall back to item name, library.get(title) doesn't always return the
@@ -245,6 +237,7 @@ class PlexCollectionMaker:
                             collection: Collection = library[1].createCollection(
                                 title=collection_title, items=collection_items
                             )
+                            #TODO break up with single edit?
                             # Set sort title
                             if ("titleSort" in self.collections_config[library[0]][collection_title]
                                 and self.collections_config[library[0]][collection_title]["titleSort"]
@@ -333,6 +326,7 @@ class PlexCollectionMaker:
                     # Add new items to collection that are in config, but not collection
                     new_items = []
                     explained_guid = False
+                    s: str
                     for s in self.collections_config[lib[0]][coll_update.title]["items"]:
                         if (s.split(" plex://")[0].split(" {")[0].encode("utf-8") not in
                             [x.title.encode("utf-8") for x in coll_update.items()]
@@ -343,27 +337,11 @@ class PlexCollectionMaker:
                             )
                             try:
                                 # Find library item using plex guid, if provided
-                                if plex_libraries[lib[0]].type == "movie":
-                                    if (guid := self.extract_guid(s, "tmdb")) != -1:
-                                        new_items.append(plex_libraries[lib[0]].getGuid(f"tmdb://{guid}"))
-                                    elif (guid := self.extract_guid(s, "imdb")) != -1:
-                                        new_items.append(plex_libraries[lib[0]].getGuid(f"imdb://{guid}"))
-                                    else:
-                                        new_items.append(plex_libraries[lib[0]].getGuid(
-                                            f"plex://{s.split('plex://')[-1].split()[0]}"
-                                        ))
-                                elif plex_libraries[lib[0]].type == "show":
-                                    if (guid := self.extract_guid(s, "tmdb")) != -1:
-                                        new_items.append(plex_libraries[lib[0]].getGuid(f"tmdb://{guid}"))
-                                    elif (guid := self.extract_guid(s, "tvdb")) != -1:
-                                        new_items.append(plex_libraries[lib[0]].getGuid(f"tvdb://{guid}"))
-                                    else:
-                                        new_items.append(plex_libraries[lib[0]].getGuid(
-                                            f"plex://{s.split('plex://')[-1].split()[0]}"
-                                        ))
-                                else:
-                                    raise plexapi.exceptions.UnknownType
-                                
+                                new_items.append(
+                                    plex_libraries[lib[0]].getGuid(
+                                        self.get_item_guid(s, plex_libraries[lib[0]].type, full=True)
+                                    )
+                                )
                             except plexapi.exceptions.NotFound:
                                 try:
                                     # Fall back to item name, library.get(title) doesn't always return the
@@ -398,27 +376,17 @@ class PlexCollectionMaker:
 
                     # Remove items from collection that are not in config list
                     remove_items = []
+                    s: Union[Movie, Show]
                     for s in coll_update.items():
                         remove_item_from_coll = True
                         config_guids = []
+                        x: str
                         for x in self.collections_config[lib[0]][coll_update.title]["items"]:
                             # Get any guids provided for items in config
-                            if plex_libraries[lib[0]].type == "movie":
-                                if (guid := self.extract_guid(x, "tmdb")) != -1:
-                                    config_guids.append(guid)
-                                elif (guid := self.extract_guid(x, "imdb")) != -1:
-                                    config_guids.append(guid)
-                                else:
-                                    config_guids.append(f"plex://{x.split('plex://')[-1].split()[0]}")
-                            elif plex_libraries[lib[0]].type == "show":
-                                if (guid := self.extract_guid(x, "tmdb")) != -1:
-                                    config_guids.append(guid)
-                                elif (guid := self.extract_guid(x, "tvdb")) != -1:
-                                    config_guids.append(guid)
-                                else:
-                                    config_guids.append(f"plex://{x.split('plex://')[-1].split()[0]}")
+                            config_guids.append(self.get_item_guid(x, plex_libraries[lib[0]].type))
 
                             # If item in collection matches an item in the config, don't remove
+                            sg: Guid
                             for sg in s.guids:
                                 if (x.find(sg.id.split("://")[-1]) != -1) or (sg.id.split("://")[-1] in config_guids):
                                     remove_item_from_coll = False
