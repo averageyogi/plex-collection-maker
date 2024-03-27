@@ -58,9 +58,9 @@ in the earlier file will be discarded.
 Below are examples of collection configuration files. Only the collection title header and items list are necessary to
 create a collection, but there are many other options available.
 
-These are the outputs of the dump functions and include the Plex GUID for each item. These are also not necessary, but
+The outputs with Plex GUIDs are the result of the dump functions. These are also not necessary, but
 should ensure accurate item identification when adding to a collection. IMDB, TMDB, and TVDB GUIDs can also be used for
-identification.
+identification, see Plex support articles on file naming for [shows](https://support.plex.tv/articles/naming-and-organizing-your-tv-show-files/) and [movies](https://support.plex.tv/articles/naming-and-organizing-your-movie-media-files/).
 
 ---
 Sample movie collection config
