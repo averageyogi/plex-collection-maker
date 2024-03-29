@@ -147,7 +147,6 @@ class PlexCollectionMaker:
         Returns:
             str: the available GUID of the title, returns "-1" if no GUID is available
         """
-        #TODO check extract_guid() vs find()
         try:
             lib_sources = {
                 "movie": ["tmdb", "imdb", "plex"],
@@ -196,12 +195,12 @@ class PlexCollectionMaker:
                     if ("items" in self.collections_config[library[0]][collection_title]
                         and self.collections_config[library[0]][collection_title]["items"]
                     ):
-                        item: str
-                        for item in self.collections_config[library[0]][collection_title]["items"]:
+                        config_item: str
+                        for config_item in self.collections_config[library[0]][collection_title]["items"]:
                             try:
                                 # Find library item using plex guid, if provided
                                 collection_items.append(
-                                    library[1].getGuid(self.get_item_guid(item, library[1].type, full=True))
+                                    library[1].getGuid(self.get_item_guid(config_item, library[1].type, full=True))
                                 )
                             except plexapi.exceptions.NotFound:
                                 try:
@@ -210,9 +209,9 @@ class PlexCollectionMaker:
                                     # so find match in full search
                                     search = next(
                                         (
-                                            x for x in plex_libraries[library[0]].search(
-                                                title=item.split(' plex://')[0].split(' {')[0]
-                                            ) if x.title == item.split(' plex://')[0].split(' {')[0]
+                                            lib_item for lib_item in plex_libraries[library[0]].search(
+                                                title=config_item.split(' plex://')[0].split(' {')[0]
+                                            ) if lib_item.title == config_item.split(' plex://')[0].split(' {')[0]
                                         ),
                                         None
                                     )
@@ -229,7 +228,7 @@ class PlexCollectionMaker:
                                         explained_guid = True
                                 except plexapi.exceptions.NotFound:
                                     print(
-                                        f'\033[33mItem "{item.split(" plex://")[0]}" not found in '
+                                        f'\033[33mItem "{config_item.split(" plex://")[0]}" not found in '
                                         f'"{library[0]}" library.\033[0m'
                                     )
                         if len(collection_items) > 0:
@@ -312,34 +311,34 @@ class PlexCollectionMaker:
             collections_to_update (dict[str, list[Collection]]): Collections to update
         """
         for lib in collections_to_update.items():
-            for coll_update in lib[1]:
-                if coll_update.smart:
+            for collection_update in lib[1]:
+                if collection_update.smart:
                     print(
                         f'\033[31mUnable to create or update smart collections. '
-                        f'Ignoring "{coll_update.title}" collection.\033[0m'
+                        f'Ignoring "{collection_update.title}" collection.\033[0m'
                     )
                     continue
-                print(f'Syncing "{coll_update.title}" in "{lib[0]}" library to config...')
-                if ("items" in self.collections_config[lib[0]][coll_update.title]
-                    and self.collections_config[lib[0]][coll_update.title]["items"]
+                print(f'Syncing "{collection_update.title}" in "{lib[0]}" library to config...')
+                if ("items" in self.collections_config[lib[0]][collection_update.title]
+                    and self.collections_config[lib[0]][collection_update.title]["items"]
                 ):
                     # Add new items to collection that are in config, but not collection
                     new_items = []
                     explained_guid = False
-                    s: str
-                    for s in self.collections_config[lib[0]][coll_update.title]["items"]:
-                        if (s.split(" plex://")[0].split(" {")[0].encode("utf-8") not in
-                            [x.title.encode("utf-8") for x in coll_update.items()]
+                    config_item: str
+                    for config_item in self.collections_config[lib[0]][collection_update.title]["items"]:
+                        if (config_item.split(" plex://")[0].split(" {")[0].encode("utf-8") not in
+                            [lib_item.title.encode("utf-8") for lib_item in collection_update.items()]
                         ):
                             print(
-                                f'Adding "{s.split(" plex://")[0].split(" {")[0]}" '
-                                f'to "{coll_update.title}" collection...'
+                                f'Adding "{config_item.split(" plex://")[0].split(" {")[0]}" '
+                                f'to "{collection_update.title}" collection...'
                             )
                             try:
                                 # Find library item using plex guid, if provided
                                 new_items.append(
                                     plex_libraries[lib[0]].getGuid(
-                                        self.get_item_guid(s, plex_libraries[lib[0]].type, full=True)
+                                        self.get_item_guid(config_item, plex_libraries[lib[0]].type, full=True)
                                     )
                                 )
                             except plexapi.exceptions.NotFound:
@@ -349,9 +348,9 @@ class PlexCollectionMaker:
                                     # so find match in full search
                                     search = next(
                                         (
-                                            x for x in plex_libraries[lib[0]].search(
-                                                title=s.split(' plex://')[0].split(' {')[0]
-                                            ) if x.title == s.split(' plex://')[0].split(' {')[0]
+                                            lib_item for lib_item in plex_libraries[lib[0]].search(
+                                                title=config_item.split(' plex://')[0].split(' {')[0]
+                                            ) if lib_item.title == config_item.split(' plex://')[0].split(' {')[0]
                                         ),
                                         None
                                     )
@@ -368,108 +367,116 @@ class PlexCollectionMaker:
                                         explained_guid = True
                                 except plexapi.exceptions.NotFound:
                                     print(
-                                        f'\033[33mItem "{s.split(" plex://")[0]}" '
+                                        f'\033[33mItem "{config_item.split(" plex://")[0]}" '
                                         f'not found in "{plex_libraries[lib[0]].title}" library\033[0m.'
                                     )
                     if len(new_items) > 0:
-                        coll_update.addItems(items=new_items)
+                        collection_update.addItems(items=new_items)
 
                     # Remove items from collection that are not in config list
                     remove_items = []
-                    s: Union[Movie, Show]
-                    for s in coll_update.items():
+                    lib_item: Union[Movie, Show]
+                    for lib_item in collection_update.items():
                         remove_item_from_coll = True
                         config_guids = []
-                        x: str
-                        for x in self.collections_config[lib[0]][coll_update.title]["items"]:
+                        config_item: str
+                        for config_item in self.collections_config[lib[0]][collection_update.title]["items"]:
                             # Get any guids provided for items in config
-                            config_guids.append(self.get_item_guid(x, plex_libraries[lib[0]].type))
+                            config_guids.append(self.get_item_guid(config_item, plex_libraries[lib[0]].type))
 
                             # If item in collection matches an item in the config, don't remove
                             sg: Guid
-                            for sg in s.guids:
-                                if (x.find(sg.id.split("://")[-1]) != -1) or (sg.id.split("://")[-1] in config_guids):
+                            for sg in lib_item.guids:
+                                if (config_item.find(sg.id.split("://")[-1]) != -1
+                                    or sg.id.split("://")[-1] in config_guids
+                                ):
                                     remove_item_from_coll = False
-                            if x.find(s.guid) != -1:
+                            if config_item.find(lib_item.guid) != -1:
                                 remove_item_from_coll = False
 
                         # This is back-up, if name in config doesn't match
                         # the exact title used in Plex, this check will fail
                         remove_item_from_coll = (
                             remove_item_from_coll
-                            and s.title.encode("utf-8") not in [
-                                x.split(" plex://")[0].split(" {")[0].encode("utf-8")
-                                for x in self.collections_config[lib[0]][coll_update.title]["items"]
+                            and lib_item.title.encode("utf-8") not in [
+                                config_item.split(" plex://")[0].split(" {")[0].encode("utf-8")
+                                for config_item in self.collections_config[lib[0]][collection_update.title]["items"]
                             ]
                         )
 
                         if remove_item_from_coll:
-                            print(f'Removing "{s.title}" from "{coll_update.title}" collection...')
-                            remove_items.append(plex_libraries[lib[0]].getGuid(s.guid))
+                            print(f'Removing "{lib_item.title}" from "{collection_update.title}" collection...')
+                            remove_items.append(plex_libraries[lib[0]].getGuid(lib_item.guid))
                     if len(remove_items) > 0:
-                        coll_update.removeItems(items=remove_items)
+                        collection_update.removeItems(items=remove_items)
 
                     #TODO break up with single edit?
                     # Update sort title
-                    if ("titleSort" in self.collections_config[lib[0]][coll_update.title]
-                        and self.collections_config[lib[0]][coll_update.title]["titleSort"]
+                    if ("titleSort" in self.collections_config[lib[0]][collection_update.title]
+                        and self.collections_config[lib[0]][collection_update.title]["titleSort"]
                     ):
-                        coll_update.editSortTitle(
-                            sortTitle=self.collections_config[lib[0]][coll_update.title]["titleSort"]
+                        collection_update.editSortTitle(
+                            sortTitle=self.collections_config[lib[0]][collection_update.title]["titleSort"]
                         )
                     # Update content rating
-                    if ("contentRating" in self.collections_config[lib[0]][coll_update.title]
-                        and self.collections_config[lib[0]][coll_update.title]["contentRating"]
+                    if ("contentRating" in self.collections_config[lib[0]][collection_update.title]
+                        and self.collections_config[lib[0]][collection_update.title]["contentRating"]
                     ):
-                        coll_update.editContentRating(
-                            contentRating=self.collections_config[lib[0]][coll_update.title]["contentRating"]
+                        collection_update.editContentRating(
+                            contentRating=self.collections_config[lib[0]][collection_update.title]["contentRating"]
                         )
                     # Update summary
-                    if ("summary" in self.collections_config[lib[0]][coll_update.title]
-                        and self.collections_config[lib[0]][coll_update.title]["summary"]
+                    if ("summary" in self.collections_config[lib[0]][collection_update.title]
+                        and self.collections_config[lib[0]][collection_update.title]["summary"]
                     ):
-                        coll_update.editSummary(
-                            summary=self.collections_config[lib[0]][coll_update.title]["summary"]
+                        collection_update.editSummary(
+                            summary=self.collections_config[lib[0]][collection_update.title]["summary"]
                         )
                     # Add/remove labels according to config list
-                    if ("labels" in self.collections_config[lib[0]][coll_update.title]
-                        and self.collections_config[lib[0]][coll_update.title]["labels"]
+                    if ("labels" in self.collections_config[lib[0]][collection_update.title]
+                        and self.collections_config[lib[0]][collection_update.title]["labels"]
                     ):
                         new_labels = []
-                        for s in self.collections_config[lib[0]][coll_update.title]["labels"]:
-                            if s not in [x.tag for x in coll_update.labels]:
-                                print(f'Adding "{s}" label to "{coll_update.title}" collection...')
-                                new_labels.append(s)
+                        for config_label in self.collections_config[lib[0]][collection_update.title]["labels"]:
+                            if config_label not in [x.tag for x in collection_update.labels]:
+                                print(f'Adding "{config_label}" label to "{collection_update.title}" collection...')
+                                new_labels.append(config_label)
                         if len(new_labels) > 0:
-                            coll_update.addLabel(labels=new_labels)
+                            collection_update.addLabel(labels=new_labels)
                         remove_labels = []
-                        for s in [x.tag for x in coll_update.labels]:
-                            if s not in self.collections_config[lib[0]][coll_update.title]["labels"]:
-                                print(f'Removing "{s}" label from "{coll_update.title}" collection...')
-                                remove_labels.append(s)
+                        for lib_label in [x.tag for x in collection_update.labels]:
+                            if lib_label not in self.collections_config[lib[0]][collection_update.title]["labels"]:
+                                print(f'Removing "{lib_label}" label from "{collection_update.title}" collection...')
+                                remove_labels.append(lib_label)
                         if len(remove_labels) > 0:
-                            coll_update.removeLabel(labels=remove_labels)
+                            collection_update.removeLabel(labels=remove_labels)
                     # Update poster
-                    if ("poster" in self.collections_config[lib[0]][coll_update.title]
-                        and self.collections_config[lib[0]][coll_update.title]["poster"]
+                    if ("poster" in self.collections_config[lib[0]][collection_update.title]
+                        and self.collections_config[lib[0]][collection_update.title]["poster"]
                     ):
-                        coll_update.uploadPoster(filepath=self.collections_config[lib[0]][coll_update.title]["poster"])
+                        collection_update.uploadPoster(
+                            filepath=self.collections_config[lib[0]][collection_update.title]["poster"]
+                        )
                     # Update collection mode
-                    if ("mode" in self.collections_config[lib[0]][coll_update.title]
-                        and self.collections_config[lib[0]][coll_update.title]["mode"]
+                    if ("mode" in self.collections_config[lib[0]][collection_update.title]
+                        and self.collections_config[lib[0]][collection_update.title]["mode"]
                     ):
-                        coll_update.modeUpdate(mode=self.collections_config[lib[0]][coll_update.title]["mode"])
+                        collection_update.modeUpdate(
+                            mode=self.collections_config[lib[0]][collection_update.title]["mode"]
+                        )
                     # Update collection order
-                    if ("sort" in self.collections_config[lib[0]][coll_update.title]
-                        and self.collections_config[lib[0]][coll_update.title]["sort"]
+                    if ("sort" in self.collections_config[lib[0]][collection_update.title]
+                        and self.collections_config[lib[0]][collection_update.title]["sort"]
                     ):
-                        coll_update.sortUpdate(sort=self.collections_config[lib[0]][coll_update.title]["sort"])
+                        collection_update.sortUpdate(
+                            sort=self.collections_config[lib[0]][collection_update.title]["sort"]
+                        )
                 else:
                     print(
-                        f'\033[31mNo items found in config. Removing collection "{coll_update.title}" '
+                        f'\033[31mNo items found in config. Removing collection "{collection_update.title}" '
                         f'from "{plex_libraries[lib[0]]}" library.\033[0m'
                     )
-                    coll_update.delete()
+                    collection_update.delete()
 
     def dump_collections(self, plex_libraries: dict[str, LibrarySection]) -> Path:
         """
@@ -487,7 +494,10 @@ class PlexCollectionMaker:
             # # lib_dicts = {
             # #     'collections': {
             # #         'collection1': {
-            # #             'titleSort': 'titleSort',
+            # #             'items': [
+            # #                 'item1',
+            # #                 'item2',
+            # #             ],
             # #             'labels': [
             # #                 'label1',
             # #                 'label2',
@@ -496,10 +506,7 @@ class PlexCollectionMaker:
             # #             'poster': 'poster',
             # #             'mode': 'mode',
             # #             'sort': 'sort',
-            # #             'items': [
-            # #                 'item1',
-            # #                 'item2',
-            # #             ]
+            # #             'titleSort': 'titleSort',
             # #         },
             # #         'collection2': {}
             # #     }
