@@ -236,56 +236,32 @@ class PlexCollectionMaker:
                             collection: Collection = library[1].createCollection(
                                 title=collection_title, items=collection_items
                             )
-                            #TODO break up with single edit?
-                            # Set sort title
-                            if ("titleSort" in self.collections_config[library[0]][collection_title]
-                                and self.collections_config[library[0]][collection_title]["titleSort"]
-                            ):
-                                collection.editSortTitle(
-                                    sortTitle=self.collections_config[library[0]][collection_title]["titleSort"]
-                                )
-                            # Set content rating
-                            if ("contentRating" in self.collections_config[library[0]][collection_title]
-                                and self.collections_config[library[0]][collection_title]["contentRating"]
-                            ):
-                                collection.editContentRating(
-                                    contentRating=self.collections_config[library[0]][collection_title]["contentRating"]
-                                )
-                            # Set summary
-                            if ("summary" in self.collections_config[library[0]][collection_title]
-                                and self.collections_config[library[0]][collection_title]["summary"]
-                            ):
-                                collection.editSummary(
-                                    summary=self.collections_config[library[0]][collection_title]["summary"]
-                                )
-                            # Add labels according to config list
-                            if ("labels" in self.collections_config[library[0]][collection_title]
-                                and self.collections_config[library[0]][collection_title]["labels"]
-                            ):
-                                collection.addLabel(
-                                    labels=self.collections_config[library[0]][collection_title]["labels"]
-                                )
-                            # Upload and set poster
-                            if ("poster" in self.collections_config[library[0]][collection_title]
-                                and self.collections_config[library[0]][collection_title]["poster"]
-                            ):
-                                collection.uploadPoster(
-                                    filepath=self.collections_config[library[0]][collection_title]["poster"]
-                                )
-                            # Set collection mode
-                            if ("mode" in self.collections_config[library[0]][collection_title]
-                                and self.collections_config[library[0]][collection_title]["mode"]
-                            ):
-                                collection.modeUpdate(
-                                    mode=self.collections_config[library[0]][collection_title]["mode"]
-                                )
-                            # Set collection order
-                            if ("sort" in self.collections_config[library[0]][collection_title]
-                                and self.collections_config[library[0]][collection_title]["sort"]
-                            ):
-                                collection.sortUpdate(
-                                    sort=self.collections_config[library[0]][collection_title]["sort"]
-                                )
+                            fields = [
+                                ("titleSort",       collection.editSortTitle),
+                                ("contentRating",   collection.editContentRating),
+                                ("summary",         collection.editSummary),
+                                ("labels",          collection.addLabel),
+                                ("poster",          collection.uploadPoster),
+                                ("mode",            collection.modeUpdate),
+                                ("sort",            collection.sortUpdate)
+                            ]
+                            for field, edit_func in fields:
+                                if (field in self.collections_config[library[0]][collection_title]
+                                    and self.collections_config[library[0]][collection_title][field]
+                                ):
+                                    if field == "poster":
+                                        if (self.collections_config[
+                                                library[0]][collection_title][field][:7] == "http://"
+                                            or self.collections_config[
+                                                library[0]][collection_title][field][:8] == "https://"
+                                        ):
+                                            edit_func(url=self.collections_config[library[0]][collection_title][field])
+                                        else:
+                                            edit_func(
+                                                filepath=self.collections_config[library[0]][collection_title][field]
+                                            )
+                                    else:
+                                        edit_func(self.collections_config[library[0]][collection_title][field])
                         else:
                             print(
                                 "\033[31mUnable to create collection. "
@@ -410,7 +386,6 @@ class PlexCollectionMaker:
                     if len(remove_items) > 0:
                         collection_update.removeItems(items=remove_items)
 
-                    #TODO break up with single edit?
                     # Update sort title
                     if ("titleSort" in self.collections_config[lib[0]][collection_update.title]
                         and self.collections_config[lib[0]][collection_update.title]["titleSort"]
