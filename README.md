@@ -62,8 +62,8 @@ The outputs with Plex GUIDs are the result of the dump functions. These are also
 should ensure accurate item identification when adding to a collection. IMDB, TMDB, and TVDB GUIDs can also be used for
 identification, see Plex support articles on file naming for [shows](https://support.plex.tv/articles/naming-and-organizing-your-tv-show-files/) and [movies](https://support.plex.tv/articles/naming-and-organizing-your-movie-media-files/).
 
-Script will not delete any collections. To remove a collection, delete from configuration file and delete through
-Plex UI.
+If a collection exists in a configuration file but doesn't list any items, the script will delete that collection from
+the library. The script will not affect any collection not listed in the configuration files.
 
 ---
 Sample movie collection config
