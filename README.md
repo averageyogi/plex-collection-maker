@@ -153,7 +153,7 @@ You can also dump lists of existing collections to file, and exclude collection 
 python main.py --dump-collections --exclude-edit
 ```
 
-As well as dump the entire contents of existing existing libraries to file
+As well as dump the entire contents of existing libraries to file
 
 ```bash
 python main.py --dump-libraries --all-fields --exclude-edit
