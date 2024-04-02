@@ -216,7 +216,7 @@ class PlexCollectionMaker:
                                         None
                                     )
                                     if search is None:
-                                        raise plexapi.exceptions.NotFound
+                                        raise plexapi.exceptions.NotFound  # pylint: disable=raise-missing-from
                                     collection_items.append(search)
 
                                     if not explained_guid:
@@ -331,7 +331,7 @@ class PlexCollectionMaker:
                                         None
                                     )
                                     if search is None:
-                                        raise plexapi.exceptions.NotFound
+                                        raise plexapi.exceptions.NotFound  # pylint: disable=raise-missing-from
                                     new_items.append(search)
 
                                     if not explained_guid:
@@ -386,66 +386,58 @@ class PlexCollectionMaker:
                     if len(remove_items) > 0:
                         collection_update.removeItems(items=remove_items)
 
-                    # Update sort title
-                    if ("titleSort" in self.collections_config[lib[0]][collection_update.title]
-                        and self.collections_config[lib[0]][collection_update.title]["titleSort"]
-                    ):
-                        collection_update.editSortTitle(
-                            sortTitle=self.collections_config[lib[0]][collection_update.title]["titleSort"]
-                        )
-                    # Update content rating
-                    if ("contentRating" in self.collections_config[lib[0]][collection_update.title]
-                        and self.collections_config[lib[0]][collection_update.title]["contentRating"]
-                    ):
-                        collection_update.editContentRating(
-                            contentRating=self.collections_config[lib[0]][collection_update.title]["contentRating"]
-                        )
-                    # Update summary
-                    if ("summary" in self.collections_config[lib[0]][collection_update.title]
-                        and self.collections_config[lib[0]][collection_update.title]["summary"]
-                    ):
-                        collection_update.editSummary(
-                            summary=self.collections_config[lib[0]][collection_update.title]["summary"]
-                        )
+                    fields = [
+                        ("titleSort",       collection_update.editSortTitle),
+                        ("contentRating",   collection_update.editContentRating),
+                        ("summary",         collection_update.editSummary),
+                        ("poster",          collection_update.uploadPoster),
+                        ("mode",            collection_update.modeUpdate),
+                        ("sort",            collection_update.sortUpdate)
+                    ]
+                    for field, edit_func in fields:
+                        if (field in self.collections_config[lib[0]][collection_update.title]
+                            and self.collections_config[lib[0]][collection_update.title][field]
+                        ):
+                            if field == "poster":
+                                if (self.collections_config[
+                                        lib[0]][collection_update.title][field][:7] == "http://"
+                                    or self.collections_config[
+                                        lib[0]][collection_update.title][field][:8] == "https://"
+                                ):
+                                    edit_func(url=self.collections_config[lib[0]][collection_update.title][field])
+                                else:
+                                    edit_func(
+                                        filepath=self.collections_config[lib[0]][collection_update.title][field]
+                                    )
+                            else:
+                                edit_func(self.collections_config[lib[0]][collection_update.title][field])
+                        #TODO if not in config, check locked?, confirm with user to unlock, and revert/rescan?
+
                     # Add/remove labels according to config list
-                    if ("labels" in self.collections_config[lib[0]][collection_update.title]
-                        and self.collections_config[lib[0]][collection_update.title]["labels"]
-                    ):
-                        new_labels = []
-                        for config_label in self.collections_config[lib[0]][collection_update.title]["labels"]:
-                            if config_label not in [x.tag for x in collection_update.labels]:
-                                print(f'Adding "{config_label}" label to "{collection_update.title}" collection...')
-                                new_labels.append(config_label)
-                        if len(new_labels) > 0:
-                            collection_update.addLabel(labels=new_labels)
-                        remove_labels = []
-                        for lib_label in [x.tag for x in collection_update.labels]:
-                            if lib_label not in self.collections_config[lib[0]][collection_update.title]["labels"]:
-                                print(f'Removing "{lib_label}" label from "{collection_update.title}" collection...')
-                                remove_labels.append(lib_label)
-                        if len(remove_labels) > 0:
-                            collection_update.removeLabel(labels=remove_labels)
-                    # Update poster
-                    if ("poster" in self.collections_config[lib[0]][collection_update.title]
-                        and self.collections_config[lib[0]][collection_update.title]["poster"]
-                    ):
-                        collection_update.uploadPoster(
-                            filepath=self.collections_config[lib[0]][collection_update.title]["poster"]
-                        )
-                    # Update collection mode
-                    if ("mode" in self.collections_config[lib[0]][collection_update.title]
-                        and self.collections_config[lib[0]][collection_update.title]["mode"]
-                    ):
-                        collection_update.modeUpdate(
-                            mode=self.collections_config[lib[0]][collection_update.title]["mode"]
-                        )
-                    # Update collection order
-                    if ("sort" in self.collections_config[lib[0]][collection_update.title]
-                        and self.collections_config[lib[0]][collection_update.title]["sort"]
-                    ):
-                        collection_update.sortUpdate(
-                            sort=self.collections_config[lib[0]][collection_update.title]["sort"]
-                        )
+                    if "labels" in self.collections_config[lib[0]][collection_update.title]:
+                        if self.collections_config[lib[0]][collection_update.title]["labels"]:
+                            new_labels = []
+                            for config_label in self.collections_config[lib[0]][collection_update.title]["labels"]:
+                                if config_label not in [x.tag for x in collection_update.labels]:
+                                    print(f'Adding "{config_label}" label to "{collection_update.title}" collection...')
+                                    new_labels.append(config_label)
+                            if len(new_labels) > 0:
+                                collection_update.addLabel(labels=new_labels)
+                            remove_labels = []
+                            for lib_label in [x.tag for x in collection_update.labels]:
+                                if lib_label not in self.collections_config[lib[0]][collection_update.title]["labels"]:
+                                    print(
+                                        f'Removing "{lib_label}" label from "{collection_update.title}" collection...'
+                                    )
+                                    remove_labels.append(lib_label)
+                            if len(remove_labels) > 0:
+                                collection_update.removeLabel(labels=remove_labels)
+                        else:
+                            # Labels section in config, but no tags listed, remove all from library collection
+                            collection_update.removeLabel(
+                                labels=[x.tag for x in collection_update.labels],
+                                locked=False
+                            )
                 else:
                     print(
                         f'\033[31mNo items found in config. Removing collection "{collection_update.title}" '
