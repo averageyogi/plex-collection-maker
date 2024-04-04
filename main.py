@@ -10,7 +10,7 @@ from plexapi.server import PlexServer
 from plexapi.library import LibrarySection
 from plexapi.collection import Collection
 from plexapi.video import Movie, Show
-from plexapi.media import Guid
+from plexapi.media import Field, Guid
 import requests
 from tqdm import tqdm
 import yaml
@@ -514,6 +514,7 @@ class PlexCollectionMaker:
                 lib_dicts["collections"][c.title]["mode"] = mode_dict[c.collectionMode]
                 lib_dicts["collections"][c.title]["sort"] = sort_dict[c.collectionSort]
                 lib_dicts["collections"][c.title]["items"] = [f"{x.title} {x.guid}" for x in c.items()]
+                #TODO dump collections with other guids
 
             os.makedirs("./config_dump", exist_ok=True)
             config_file = Path(f'./config_dump/{library[0].replace(" ", "_")}_collections.yml')
@@ -550,11 +551,11 @@ class PlexCollectionMaker:
                 # #                 'genre2',
                 # #                 'genre3'
                 # #             ],
-                # #             'labels': [
+                # #             'label': [
                 # #                 'label1',
                 # #                 'label2'
                 # #             ],
-                # #             'collections': [
+                # #             'collection': [
                 # #                 'collection1',
                 # #                 'collection2',
                 # #             ]
@@ -573,34 +574,32 @@ class PlexCollectionMaker:
                     desc=library[0],
                     unit=library[1].type
                 ):
+                    #TODO dump library with other guids
                     title = f"{item.title} {item.guid}"
                     lib_dict[library[0]][title] = {}
 
-                    fields = [x.name for x in item.fields]
-                    if "titleSort" in fields:
-                        lib_dict[library[0]][title]["titleSort"] = item.titleSort
-                    if "originalTitle" in fields:
-                        lib_dict[library[0]][title]["originalTitle"] = item.originalTitle
-                    if "contentRating" in fields:
-                        lib_dict[library[0]][title]["contentRating"] = item.contentRating
-                    if "year" in fields:
-                        lib_dict[library[0]][title]["year"] = item.year
-                    if "studio" in fields:
-                        lib_dict[library[0]][title]["studio"] = item.studio
-                    if "originallyAvailableAt" in fields:
-                        lib_dict[library[0]][title]["originallyAvailableAt"] = item.originallyAvailableAt
-                    if "summary" in fields:
-                        lib_dict[library[0]][title]["summary"] = item.summary
-                    if "genre" in fields:
-                        lib_dict[library[0]][title]["genres"] = [x.tag for x in item.genres]
-                    if "label" in fields:
-                        lib_dict[library[0]][title]["labels"] = [x.tag for x in item.labels]
-                    if "collection" in fields:
-                        lib_dict[library[0]][title]["collections"] = [x.tag for x in item.collections]
+                    used_fields = [
+                        "titleSort",
+                        "originalTitle",
+                        "contentRating",
+                        "year",
+                        "studio",
+                        "originallyAvailableAt",
+                        "summary"
+                    ]
+                    used_multi_fields = ["genre", "label", "collection"]
+
+                    field: Field
+                    for field in item.fields:
+                        if field.name in used_fields:
+                            lib_dict[library[0]][title][field.name] = getattr(item, field.name)
+                        if field.name in used_multi_fields:
+                            lib_dict[library[0]][title][field.name] = [x.tag for x in getattr(item, field.name+"s")]
 
             else: # Just a list of movie/show titles and guids
                 lib_dict: dict[str, list[str]] = {}
                 lib_dict[library[0]] = [
+                    #TODO dump library with other guids
                     f"{x.title} {x.guid}" for x in tqdm(
                         library[1].all(),
                         total=library[1].totalSize,
