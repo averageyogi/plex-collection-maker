@@ -216,7 +216,7 @@ class PlexCollectionMaker:
                                         None
                                     )
                                     if search is None:
-                                        raise plexapi.exceptions.NotFound  # pylint: disable=raise-missing-from
+                                        raise plexapi.exceptions.NotFound from None
                                     collection_items.append(search)
 
                                     if not explained_guid:
@@ -331,7 +331,7 @@ class PlexCollectionMaker:
                                         None
                                     )
                                     if search is None:
-                                        raise plexapi.exceptions.NotFound  # pylint: disable=raise-missing-from
+                                        raise plexapi.exceptions.NotFound from None
                                     new_items.append(search)
 
                                     if not explained_guid:
