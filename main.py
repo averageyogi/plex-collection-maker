@@ -623,7 +623,8 @@ def main(
     edit_collections: bool = False,
     dump_collections: bool = False,
     dump_libraries: bool = False,
-    all_fields: bool = False
+    all_fields: bool = False,
+    use_guid: str = "plex"
 ) -> None:
     """
     Function to run script logic.
@@ -646,6 +647,9 @@ def main(
         pcm.edit_collections(plex_libraries=plex_libraries, collections_to_update=collections_to_update)
 
         print("Collections updated.")
+
+    #TODO dump with other guids
+    pcm.set_guid(use_guid)
 
     if dump_collections:
         print("Dumping existing collections to file...")
