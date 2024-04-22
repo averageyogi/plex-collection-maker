@@ -20,17 +20,25 @@ load_dotenv(override=True)  # Take environment variables from .env
 
 
 class PlexCollectionMaker:
-    """
-    Create collections in Plex libraries from a text file list of shows or movies.
-    """
+    """Create collections in Plex libraries from a text file list of shows or movies."""
+    def __init__(self, edit_collections: bool):
+        """
+        Create collections in Plex libraries from a text file list of shows or movies.
 
-    def __init__(self):
-        self.load_config()
+        Args:
+            edit_collections (bool, optional): If true, load collection config files. If false, skip loading any
+                collection configs.
+        """
+        self.load_config(edit_collections)
         self.plex_setup()
 
-    def load_config(self) -> None:
+    def load_config(self, edit_collections: bool) -> None:
         """
         Load environment variables from .env and library configuration from config.yml.
+
+        Args:
+            edit_collections (bool, optional): If true, load collection config files. If false, skip loading any
+                collection configs.
         """
         self.using_public_ip = False
         try:
@@ -72,17 +80,18 @@ class PlexCollectionMaker:
         self.libraries = [*config_yaml["libraries"]]
 
         self.collections_config = {}
-        for lib in config_yaml["libraries"]:
-            for coll_file in config_yaml["libraries"][lib]["collection_files"]:
-                with open(coll_file["file"], "r", encoding="utf-8") as collection_config_file:
-                    try:
-                        colls = yaml.safe_load(collection_config_file)
-                        if self.collections_config.get(lib):
-                            self.collections_config[lib].update(colls["collections"])
-                        else:
-                            self.collections_config[lib] = colls["collections"]
-                    except yaml.YAMLError as err:
-                        print(err)
+        if edit_collections:
+            for lib in config_yaml["libraries"]:
+                for coll_file in config_yaml["libraries"][lib]["collection_files"]:
+                    with open(coll_file["file"], "r", encoding="utf-8") as collection_config_file:
+                        try:
+                            colls = yaml.safe_load(collection_config_file)
+                            if self.collections_config.get(lib):
+                                self.collections_config[lib].update(colls["collections"])
+                            else:
+                                self.collections_config[lib] = colls["collections"]
+                        except yaml.YAMLError as err:
+                            print(err)
 
     def plex_setup(self) -> None:
         """
@@ -112,14 +121,14 @@ class PlexCollectionMaker:
         except plexapi.exceptions.Unauthorized:
             sys.exit('Invalid Plex token. Please check the "PLEX_TOKEN" in .env, and consult the README.')
 
-    def get_libraries(self) -> dict[str, LibrarySection]:
+    def get_libraries(self) -> "dict[str, LibrarySection]":
         """
         Return accessible Plex libraries.
 
         Returns:
             dict[str, LibrarySection]: {library name: Plex library object}
         """
-        plex_libraries: dict[str, LibrarySection] = {}
+        plex_libraries: "dict[str, LibrarySection]" = {}
         for library in self.libraries:
             try:
                 plex_libraries[library] = self.plex.library.section(library)
@@ -168,7 +177,7 @@ class PlexCollectionMaker:
         except KeyError as exc:
             raise plexapi.exceptions.UnknownType from exc
 
-    def make_collections(self, plex_libraries: dict[str, LibrarySection]) -> dict[str, list[Collection]]:
+    def make_collections(self, plex_libraries: "dict[str, LibrarySection]") -> "dict[str, list[Collection]]":
         """
         Create new regular collections from config lists.
 
@@ -178,7 +187,7 @@ class PlexCollectionMaker:
         Returns:
             dict[str, list[Collection]]: {library name: list[Collection]} Preexisting collections to check for updates.
         """
-        collections_to_update: dict[str, list[Collection]] = {}
+        collections_to_update: "dict[str, list[Collection]]" = {}
         explained_guid = False
         for library in plex_libraries.items():
             collections_to_update[library[0]] = []
@@ -191,7 +200,7 @@ class PlexCollectionMaker:
                 except plexapi.exceptions.NotFound:
                     # If the collection wasn't found in the library, add items according to config list
                     print(f'Creating "{collection_title}" collection in "{library[0]}" library...')
-                    collection_items: list[Movie | Show] = []
+                    collection_items: "list[Movie | Show]" = []
                     if ("items" in self.collections_config[library[0]][collection_title]
                         and self.collections_config[library[0]][collection_title]["items"]
                     ):
@@ -277,7 +286,7 @@ class PlexCollectionMaker:
         return collections_to_update
 
     def edit_collections(
-        self, plex_libraries: dict[str, LibrarySection], collections_to_update: dict[str, list[Collection]]
+        self, plex_libraries: "dict[str, LibrarySection]", collections_to_update: "dict[str, list[Collection]]"
     ):
         """
         Edit existing collections from config lists.
@@ -445,7 +454,7 @@ class PlexCollectionMaker:
                     )
                     collection_update.delete()
 
-    def dump_collections(self, plex_libraries: dict[str, LibrarySection]) -> Path:
+    def dump_collections(self, plex_libraries: "dict[str, LibrarySection]") -> Path:
         """
         Dump existing collections to YAML files.
 
@@ -456,8 +465,8 @@ class PlexCollectionMaker:
             Path: Output directory where YAML files are saved.
         """
         for library in plex_libraries.items():
-            library_collections: list[Collection] = library[1].collections()
-            lib_dicts: dict[str, dict[str, dict[str, Union[str, list[str]]]]] = {}
+            library_collections: "list[Collection]" = library[1].collections()
+            lib_dicts: "dict[str, dict[str, dict[str, Union[str, list[str]]]]]" = {}
             # # lib_dicts = {
             # #     'collections': {
             # #         'collection1': {
@@ -514,7 +523,6 @@ class PlexCollectionMaker:
                 lib_dicts["collections"][c.title]["mode"] = mode_dict[c.collectionMode]
                 lib_dicts["collections"][c.title]["sort"] = sort_dict[c.collectionSort]
                 lib_dicts["collections"][c.title]["items"] = [f"{x.title} {x.guid}" for x in c.items()]
-                #TODO dump collections with other guids
 
             os.makedirs("./config_dump", exist_ok=True)
             config_file = Path(f'./config_dump/{library[0].replace(" ", "_")}_collections.yml')
@@ -522,7 +530,7 @@ class PlexCollectionMaker:
                 yaml.dump(lib_dicts, f)
         return config_file.parent.resolve()
 
-    def dump_libraries(self, plex_libraries: dict[str, LibrarySection], all_fields: bool = False) -> Path:
+    def dump_libraries(self, plex_libraries: "dict[str, LibrarySection]", all_fields: bool = False) -> Path:
         """
         Dump all library items to YAML files.
 
@@ -535,7 +543,7 @@ class PlexCollectionMaker:
         """
         for library in plex_libraries.items():
             if all_fields:
-                lib_dict: dict[str, dict[Union[str, list[str]]]] = {}
+                lib_dict: "dict[str, dict[Union[str, list[str]]]]" = {}
                 # # lib_dicts = {
                 # #     'library': {
                 # #         'title1 guid1': {
@@ -574,7 +582,6 @@ class PlexCollectionMaker:
                     desc=library[0],
                     unit=library[1].type
                 ):
-                    #TODO dump library with other guids
                     title = f"{item.title} {item.guid}"
                     lib_dict[library[0]][title] = {}
 
@@ -597,9 +604,8 @@ class PlexCollectionMaker:
                             lib_dict[library[0]][title][field.name] = [x.tag for x in getattr(item, field.name+"s")]
 
             else: # Just a list of movie/show titles and guids
-                lib_dict: dict[str, list[str]] = {}
+                lib_dict: "dict[str, list[str]]" = {}
                 lib_dict[library[0]] = [
-                    #TODO dump library with other guids
                     f"{x.title} {x.guid}" for x in tqdm(
                         library[1].all(),
                         total=library[1].totalSize,
@@ -618,27 +624,48 @@ class PlexCollectionMaker:
                 yaml.dump(lib_dict, f)
         return library_dump_file.parent.resolve()
 
+    def lock_posters(self, plex_libraries: "dict[str, LibrarySection]") -> None:
+        """
+        Lock all posters and background art.
+
+        Args:
+            plex_libraries (dict[str, LibrarySection]): {library name: Plex library object}
+        """
+        for library in plex_libraries.items():
+            item: Union[Movie, Show]
+            for item in tqdm(
+                library[1].all(),
+                total=library[1].totalSize,
+                ascii=" ░▒█",
+                ncols=100,
+                desc=library[0],
+                unit=library[1].type
+            ):
+                item.lockPoster()
+                item.lockArt()
+
 
 def main(
     edit_collections: bool = False,
     dump_collections: bool = False,
     dump_libraries: bool = False,
     all_fields: bool = False,
-    use_guid: str = "plex"
+    lock_posters: bool = False,
 ) -> None:
     """
     Function to run script logic.
     """
-    pcm = PlexCollectionMaker()
+    pcm = PlexCollectionMaker(edit_collections=edit_collections)
 
     plex_libraries = pcm.get_libraries()
 
     print("Found Plex libraries: ", end="")
     print(*plex_libraries.keys(), sep=", ")
-    print("Found collection configs:")
-    for lib in plex_libraries.items():
-        print(f"  {lib[0]}: ", end="")
-        print(*pcm.collections_config[lib[0]].keys(), sep=", ")
+    if edit_collections:
+        print("Found collection configs:")
+        for lib in plex_libraries.items():
+            print(f"  {lib[0]}: ", end="")
+            print(*pcm.collections_config[lib[0]].keys(), sep=", ")
     print()
 
     if edit_collections:
@@ -647,9 +674,6 @@ def main(
         pcm.edit_collections(plex_libraries=plex_libraries, collections_to_update=collections_to_update)
 
         print("Collections updated.")
-
-    #TODO dump with other guids
-    pcm.set_guid(use_guid)
 
     if dump_collections:
         print("Dumping existing collections to file...")
@@ -661,6 +685,11 @@ def main(
         stem = pcm.dump_libraries(plex_libraries=plex_libraries, all_fields=all_fields)
         print(f'Complete. YAML files at "{stem}".')
 
+    if lock_posters:
+        print("Locking posters and background art...")
+        pcm.lock_posters(plex_libraries=plex_libraries)
+        print("Art locked.")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -668,11 +697,13 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--dump-collections", action="store_true", help="dump collections to file")
     parser.add_argument("-l", "--dump-libraries", action="store_true", help="dump libraries to file")
     parser.add_argument("-a", "--all-fields", action="store_true", help="include all fields when dumping libraries")
+    parser.add_argument("-p", "--lock-posters", action="store_true", help="lock all poster and background art fields")
     args = parser.parse_args()
 
     main(
         edit_collections=args.exclude_edit,
         dump_collections=args.dump_collections,
         dump_libraries=args.dump_libraries,
-        all_fields=args.all_fields
+        all_fields=args.all_fields,
+        lock_posters=args.lock_posters,
     )

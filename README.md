@@ -158,3 +158,13 @@ As well as dump the entire contents of existing libraries to file
 ```bash
 python main.py --dump-libraries --all-fields --exclude-edit
 ```
+
+---
+Also included is a command to lock all poster and background art in the libraries. This will stop Plex's metadata
+updates from replacing artwork. Only the .env credentials file and base config.yml (with the library names) is required
+for this lock function. Collection config files do not need to be created, and collection_files subheadings in the
+config.yml file are unnecessary. Just include the `--exclude-edit` argument.
+
+```bash
+python main.py --lock-posters --exclude-edit
+```
