@@ -523,6 +523,7 @@ class PlexCollectionMaker:
                 lib_dicts["collections"][c.title]["mode"] = mode_dict[c.collectionMode]
                 lib_dicts["collections"][c.title]["sort"] = sort_dict[c.collectionSort]
                 lib_dicts["collections"][c.title]["items"] = [f"{x.title} {x.guid}" for x in c.items()]
+                #TODO dump collections with other guids
 
             os.makedirs("./config_dump", exist_ok=True)
             config_file = Path(f'./config_dump/{library[0].replace(" ", "_")}_collections.yml')
@@ -582,6 +583,7 @@ class PlexCollectionMaker:
                     desc=library[0],
                     unit=library[1].type
                 ):
+                    #TODO dump library with other guids
                     title = f"{item.title} {item.guid}"
                     lib_dict[library[0]][title] = {}
 
@@ -606,6 +608,7 @@ class PlexCollectionMaker:
             else: # Just a list of movie/show titles and guids
                 lib_dict: "dict[str, list[str]]" = {}
                 lib_dict[library[0]] = [
+                    #TODO dump library with other guids
                     f"{x.title} {x.guid}" for x in tqdm(
                         library[1].all(),
                         total=library[1].totalSize,
@@ -651,6 +654,7 @@ def main(
     dump_libraries: bool = False,
     all_fields: bool = False,
     lock_posters: bool = False,
+    use_guid: str = "plex",
 ) -> None:
     """
     Function to run script logic.
@@ -674,6 +678,9 @@ def main(
         pcm.edit_collections(plex_libraries=plex_libraries, collections_to_update=collections_to_update)
 
         print("Collections updated.")
+
+    #TODO dump with other guids
+    pcm.set_guid(use_guid)
 
     if dump_collections:
         print("Dumping existing collections to file...")
