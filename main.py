@@ -1,22 +1,16 @@
-import os
 import sys
 import argparse
-from pathlib import Path
 from typing import Union
 
-from dotenv import load_dotenv
 import plexapi.exceptions
-from plexapi.server import PlexServer
 from plexapi.library import LibrarySection
 from plexapi.collection import Collection
 from plexapi.video import Movie, Show
-from plexapi.media import Field, Guid
-import requests
+from plexapi.media import Guid
 from tqdm import tqdm
-import yaml
 
-
-load_dotenv(override=True)  # Take environment variables from .env
+from plex_connection import PlexConnection
+from dump_to_yaml import dump_collections as col2yaml, dump_libraries as lib2yaml
 
 
 class PlexCollectionMaker:
@@ -29,97 +23,7 @@ class PlexCollectionMaker:
             edit_collections (bool, optional): If true, load collection config files. If false, skip loading any
                 collection configs.
         """
-        self.load_config(edit_collections)
-        self.plex_setup()
-
-    def load_config(self, edit_collections: bool) -> None:
-        """
-        Load environment variables from .env and library configuration from config.yml.
-
-        Args:
-            edit_collections (bool, optional): If true, load collection config files. If false, skip loading any
-                collection configs.
-        """
-        self.using_public_ip = False
-        try:
-            self.plex_token = os.environ["PLEX_TOKEN"]
-        except KeyError:
-            sys.exit('Cannot find "PLEX_TOKEN" in .env file. Please consult the README.')
-
-        try:
-            self.plex_ip = os.environ["PLEX_SERVER_IP"]
-        except KeyError:
-            # Fallback to public ip
-            try:
-                self.plex_ip = os.environ["PLEX_SERVER_PUBLIC_IP"]
-                self.using_public_ip = True
-            except KeyError:
-                sys.exit("Cannot find IP address in .env file. Please consult the README.")
-        try:
-            if not self.using_public_ip:
-                self.plex_pub_ip = os.environ["PLEX_SERVER_PUBLIC_IP"]
-            else:
-                self.plex_pub_ip = None
-        except KeyError:
-            # Only local ip given
-            self.plex_pub_ip = None
-
-        # Ensure "http://" at start of ip address
-        for ip in [self.plex_ip, self.plex_pub_ip]:
-            if ip and (ip[:7] != "http://") and (ip[:8] != "https://"):
-                sys.exit(
-                    'Invalid IP address. Ensure IP address begins "http://". '
-                    'Please check the server IP addresses in .env, and consult the README.'
-                )
-
-        with open("./config.yml", encoding="utf-8") as config_file:
-            try:
-                config_yaml = yaml.safe_load(config_file)
-            except yaml.YAMLError as err:
-                print(err)
-        self.libraries = [*config_yaml["libraries"]]
-
-        self.collections_config = {}
-        if edit_collections:
-            for lib in config_yaml["libraries"]:
-                for coll_file in config_yaml["libraries"][lib]["collection_files"]:
-                    with open(coll_file["file"], "r", encoding="utf-8") as collection_config_file:
-                        try:
-                            colls = yaml.safe_load(collection_config_file)
-                            if self.collections_config.get(lib):
-                                self.collections_config[lib].update(colls["collections"])
-                            else:
-                                self.collections_config[lib] = colls["collections"]
-                        except yaml.YAMLError as err:
-                            print(err)
-
-    def plex_setup(self) -> None:
-        """
-        Load PlexAPI config and connect to server.
-        """
-        try:
-            self.plex = PlexServer(self.plex_ip, self.plex_token)
-        except requests.exceptions.InvalidURL:
-            sys.exit("Invalid IP address. Please check the server IP addresses in .env, and consult the README.")
-        except requests.exceptions.RequestException:
-            if self.plex_pub_ip:
-                try:
-                    self.plex = PlexServer(self.plex_pub_ip, self.plex_token)
-                except requests.exceptions.RequestException:
-                    sys.exit(
-                        "Unable to connect to Plex server. Please check the server "
-                        "IP addresses in .env, and consult the README."
-                    )
-                except plexapi.exceptions.Unauthorized:
-                    sys.exit('Invalid Plex token. Please check the "PLEX_TOKEN" in .env, and consult the README.')
-            else:
-                sys.exit(
-                    "Unable to connect to Plex server. Please check the "
-                    f'{"PLEX_SERVER_PUBLIC_IP" if self.using_public_ip else "PLEX_SERVER_IP"} '
-                    "in .env, and consult the README."
-                )
-        except plexapi.exceptions.Unauthorized:
-            sys.exit('Invalid Plex token. Please check the "PLEX_TOKEN" in .env, and consult the README.')
+        self.pc = PlexConnection(edit_collections)
 
     def get_libraries(self) -> "dict[str, LibrarySection]":
         """
@@ -129,9 +33,9 @@ class PlexCollectionMaker:
             dict[str, LibrarySection]: {library name: Plex library object}
         """
         plex_libraries: "dict[str, LibrarySection]" = {}
-        for library in self.libraries:
+        for library in self.pc.config_libraries:
             try:
-                plex_libraries[library] = self.plex.library.section(library)
+                plex_libraries[library] = self.pc.plex.library.section(library)
             except plexapi.exceptions.NotFound:
                 sys.exit(f'Library named "{library}" not found. Please check the config.yml, and consult the README.')
         return plex_libraries
@@ -192,7 +96,7 @@ class PlexCollectionMaker:
         for library in plex_libraries.items():
             collections_to_update[library[0]] = []
             collection_title: str
-            for collection_title in [*self.collections_config[library[0]].keys()]:
+            for collection_title in [*self.pc.collections_config[library[0]].keys()]:
                 try:
                     collection: Collection = library[1].collection(collection_title)
                     # If the collection was found, add to list to update/sync and continue to next in config
@@ -201,11 +105,11 @@ class PlexCollectionMaker:
                     # If the collection wasn't found in the library, add items according to config list
                     print(f'Creating "{collection_title}" collection in "{library[0]}" library...')
                     collection_items: "list[Movie | Show]" = []
-                    if ("items" in self.collections_config[library[0]][collection_title]
-                        and self.collections_config[library[0]][collection_title]["items"]
+                    if ("items" in self.pc.collections_config[library[0]][collection_title]
+                        and self.pc.collections_config[library[0]][collection_title]["items"]
                     ):
                         config_item: str
-                        for config_item in self.collections_config[library[0]][collection_title]["items"]:
+                        for config_item in self.pc.collections_config[library[0]][collection_title]["items"]:
                             try:
                                 # Find library item using plex guid, if provided
                                 collection_items.append(
@@ -255,22 +159,24 @@ class PlexCollectionMaker:
                                 ("sort",            collection.sortUpdate)
                             ]
                             for field, edit_func in fields:
-                                if (field in self.collections_config[library[0]][collection_title]
-                                    and self.collections_config[library[0]][collection_title][field]
+                                if (field in self.pc.collections_config[library[0]][collection_title]
+                                    and self.pc.collections_config[library[0]][collection_title][field]
                                 ):
                                     if field == "poster":
-                                        if (self.collections_config[
+                                        if (self.pc.collections_config[
                                                 library[0]][collection_title][field][:7] == "http://"
-                                            or self.collections_config[
+                                            or self.pc.collections_config[
                                                 library[0]][collection_title][field][:8] == "https://"
                                         ):
-                                            edit_func(url=self.collections_config[library[0]][collection_title][field])
+                                            edit_func(
+                                                url=self.pc.collections_config[library[0]][collection_title][field]
+                                            )
                                         else:
                                             edit_func(
-                                                filepath=self.collections_config[library[0]][collection_title][field]
+                                                filepath=self.pc.collections_config[library[0]][collection_title][field]
                                             )
                                     else:
-                                        edit_func(self.collections_config[library[0]][collection_title][field])
+                                        edit_func(self.pc.collections_config[library[0]][collection_title][field])
                         else:
                             print(
                                 "\033[31mUnable to create collection. "
@@ -304,14 +210,14 @@ class PlexCollectionMaker:
                     )
                     continue
                 print(f'Syncing "{collection_update.title}" in "{lib[0]}" library to config...')
-                if ("items" in self.collections_config[lib[0]][collection_update.title]
-                    and self.collections_config[lib[0]][collection_update.title]["items"]
+                if ("items" in self.pc.collections_config[lib[0]][collection_update.title]
+                    and self.pc.collections_config[lib[0]][collection_update.title]["items"]
                 ):
                     # Add new items to collection that are in config, but not collection
                     new_items = []
                     explained_guid = False
                     config_item: str
-                    for config_item in self.collections_config[lib[0]][collection_update.title]["items"]:
+                    for config_item in self.pc.collections_config[lib[0]][collection_update.title]["items"]:
                         if (config_item.split(" plex://")[0].split(" {")[0].encode("utf-8") not in
                             [lib_item.title.encode("utf-8") for lib_item in collection_update.items()]
                         ):
@@ -365,7 +271,7 @@ class PlexCollectionMaker:
                         remove_item_from_coll = True
                         config_guids = []
                         config_item: str
-                        for config_item in self.collections_config[lib[0]][collection_update.title]["items"]:
+                        for config_item in self.pc.collections_config[lib[0]][collection_update.title]["items"]:
                             # Get any guids provided for items in config
                             config_guids.append(self.get_item_guid(config_item, plex_libraries[lib[0]].type))
 
@@ -385,7 +291,7 @@ class PlexCollectionMaker:
                             remove_item_from_coll
                             and lib_item.title.encode("utf-8") not in [
                                 config_item.split(" plex://")[0].split(" {")[0].encode("utf-8")
-                                for config_item in self.collections_config[lib[0]][collection_update.title]["items"]
+                                for config_item in self.pc.collections_config[lib[0]][collection_update.title]["items"]
                             ]
                         )
 
@@ -404,29 +310,29 @@ class PlexCollectionMaker:
                         ("sort",            collection_update.sortUpdate)
                     ]
                     for field, edit_func in fields:
-                        if (field in self.collections_config[lib[0]][collection_update.title]
-                            and self.collections_config[lib[0]][collection_update.title][field]
+                        if (field in self.pc.collections_config[lib[0]][collection_update.title]
+                            and self.pc.collections_config[lib[0]][collection_update.title][field]
                         ):
                             if field == "poster":
-                                if (self.collections_config[
+                                if (self.pc.collections_config[
                                         lib[0]][collection_update.title][field][:7] == "http://"
-                                    or self.collections_config[
+                                    or self.pc.collections_config[
                                         lib[0]][collection_update.title][field][:8] == "https://"
                                 ):
-                                    edit_func(url=self.collections_config[lib[0]][collection_update.title][field])
+                                    edit_func(url=self.pc.collections_config[lib[0]][collection_update.title][field])
                                 else:
                                     edit_func(
-                                        filepath=self.collections_config[lib[0]][collection_update.title][field]
+                                        filepath=self.pc.collections_config[lib[0]][collection_update.title][field]
                                     )
                             else:
-                                edit_func(self.collections_config[lib[0]][collection_update.title][field])
+                                edit_func(self.pc.collections_config[lib[0]][collection_update.title][field])
                         #TODO if not in config, check locked?, confirm with user to unlock, and revert/rescan?
 
                     # Add/remove labels according to config list
-                    if "labels" in self.collections_config[lib[0]][collection_update.title]:
-                        if self.collections_config[lib[0]][collection_update.title]["labels"]:
+                    if "labels" in self.pc.collections_config[lib[0]][collection_update.title]:
+                        if self.pc.collections_config[lib[0]][collection_update.title]["labels"]:
                             new_labels = []
-                            for config_label in self.collections_config[lib[0]][collection_update.title]["labels"]:
+                            for config_label in self.pc.collections_config[lib[0]][collection_update.title]["labels"]:
                                 if config_label not in [x.tag for x in collection_update.labels]:
                                     print(f'Adding "{config_label}" label to "{collection_update.title}" collection...')
                                     new_labels.append(config_label)
@@ -434,7 +340,8 @@ class PlexCollectionMaker:
                                 collection_update.addLabel(labels=new_labels)
                             remove_labels = []
                             for lib_label in [x.tag for x in collection_update.labels]:
-                                if lib_label not in self.collections_config[lib[0]][collection_update.title]["labels"]:
+                                if lib_label not in (
+                                    self.pc.collections_config[lib[0]][collection_update.title]["labels"]):
                                     print(
                                         f'Removing "{lib_label}" label from "{collection_update.title}" collection...'
                                     )
@@ -453,176 +360,6 @@ class PlexCollectionMaker:
                         f'from "{plex_libraries[lib[0]]}" library.\033[0m'
                     )
                     collection_update.delete()
-
-    def dump_collections(self, plex_libraries: "dict[str, LibrarySection]") -> Path:
-        """
-        Dump existing collections to YAML files.
-
-        Args:
-            plex_libraries (dict[str, LibrarySection]): {library name: Plex library object}
-
-        Returns:
-            Path: Output directory where YAML files are saved.
-        """
-        for library in plex_libraries.items():
-            library_collections: "list[Collection]" = library[1].collections()
-            lib_dicts: "dict[str, dict[str, dict[str, Union[str, list[str]]]]]" = {}
-            # # lib_dicts = {
-            # #     'collections': {
-            # #         'collection1': {
-            # #             'items': [
-            # #                 'item1',
-            # #                 'item2',
-            # #             ],
-            # #             'labels': [
-            # #                 'label1',
-            # #                 'label2',
-            # #                 'label3'
-            # #             ],
-            # #             'poster': 'poster',
-            # #             'mode': 'mode',
-            # #             'sort': 'sort',
-            # #             'titleSort': 'titleSort',
-            # #         },
-            # #         'collection2': {}
-            # #     }
-            # # }
-
-            mode_dict = {
-                -1: "default",
-                0: "hide",
-                1: "hideItems",
-                2: "showItems"
-            }
-            sort_dict = {
-                0: "release",
-                1: "alpha",
-                2: "custom"
-            }
-            lib_dicts["collections"] = {}
-            for c in tqdm(
-                library_collections,
-                total=len(library_collections),
-                ascii=" ░▒█",
-                ncols=100,
-                desc=library[0],
-                unit="collection"
-            ):
-                lib_dicts["collections"][c.title] = {}
-                fields = [x.name for x in c.fields]
-                lib_dicts["collections"][c.title]["smart"] = c.smart
-                if "titleSort" in fields:
-                    lib_dicts["collections"][c.title]["titleSort"] = c.titleSort
-                if "label" in fields:
-                    lib_dicts["collections"][c.title]["labels"] = [x.tag for x in c.labels]
-                if "contentRating" in fields:
-                    lib_dicts["collections"][c.title]["contentRating"] = c.contentRating
-                if "summary" in fields:
-                    lib_dicts["collections"][c.title]["summary"] = c.summary
-                # lib_dicts['collections'][c.title]['poster'] = c.posterUrl
-                lib_dicts["collections"][c.title]["mode"] = mode_dict[c.collectionMode]
-                lib_dicts["collections"][c.title]["sort"] = sort_dict[c.collectionSort]
-                lib_dicts["collections"][c.title]["items"] = [f"{x.title} {x.guid}" for x in c.items()]
-
-            os.makedirs("./config_dump", exist_ok=True)
-            config_file = Path(f'./config_dump/{library[0].replace(" ", "_")}_collections.yml')
-            with open(config_file.as_posix(), "w", encoding="utf-8") as f:
-                yaml.dump(lib_dicts, f)
-        return config_file.parent.resolve()
-
-    def dump_libraries(self, plex_libraries: "dict[str, LibrarySection]", all_fields: bool = False) -> Path:
-        """
-        Dump all library items to YAML files.
-
-        Args:
-            plex_libraries (dict[str, LibrarySection]): {library name: Plex library object}
-            all_fields (bool, optional): Include all locked fields for each library item.
-
-        Returns:
-            Path: Output directory where YAML files are saved.
-        """
-        for library in plex_libraries.items():
-            if all_fields:
-                lib_dict: "dict[str, dict[Union[str, list[str]]]]" = {}
-                # # lib_dicts = {
-                # #     'library': {
-                # #         'title1 guid1': {
-                # #             'titleSort': 'titleSort',
-                # #             'originalTitle': 'originalTitle',
-                # #             'contentRating': 'contentRating',
-                # #             'year': 'year',
-                # #             'studio': 'studio',
-                # #             'originallyAvailableAt': 'originallyAvailableAt',
-                # #             'summary': 'summary',
-                # #             'genre': [
-                # #                 'genre1',
-                # #                 'genre2',
-                # #                 'genre3'
-                # #             ],
-                # #             'label': [
-                # #                 'label1',
-                # #                 'label2'
-                # #             ],
-                # #             'collection': [
-                # #                 'collection1',
-                # #                 'collection2',
-                # #             ]
-                # #         },
-                # #         'title2 guid2': {}
-                # #     }
-                # # }
-
-                lib_dict[library[0]] = {}
-                item: Union[Movie, Show]
-                for item in tqdm(
-                    library[1].all(),
-                    total=library[1].totalSize,
-                    ascii=" ░▒█",
-                    ncols=100,
-                    desc=library[0],
-                    unit=library[1].type
-                ):
-                    title = f"{item.title} {item.guid}"
-                    lib_dict[library[0]][title] = {}
-
-                    used_fields = [
-                        "titleSort",
-                        "originalTitle",
-                        "contentRating",
-                        "year",
-                        "studio",
-                        "originallyAvailableAt",
-                        "summary"
-                    ]
-                    used_multi_fields = ["genre", "label", "collection"]
-
-                    field: Field
-                    for field in item.fields:
-                        if field.name in used_fields:
-                            lib_dict[library[0]][title][field.name] = getattr(item, field.name)
-                        if field.name in used_multi_fields:
-                            lib_dict[library[0]][title][field.name] = [x.tag for x in getattr(item, field.name+"s")]
-
-            else: # Just a list of movie/show titles and guids
-                lib_dict: "dict[str, list[str]]" = {}
-                lib_dict[library[0]] = [
-                    f"{x.title} {x.guid}" for x in tqdm(
-                        library[1].all(),
-                        total=library[1].totalSize,
-                        ascii=" ░▒█",
-                        ncols=100,
-                        desc=library[0],
-                        unit=library[1].type
-                    )
-                ]
-
-            os.makedirs("./library_dump", exist_ok=True)
-            library_dump_file = Path(
-                f'./library_dump/{library[0].replace(" ", "_")}{"_(all_fields)" if all_fields else ""}.yml'
-            )
-            with open(library_dump_file.as_posix(), "w", encoding="utf-8") as f:
-                yaml.dump(lib_dict, f)
-        return library_dump_file.parent.resolve()
 
     def lock_posters(self, plex_libraries: "dict[str, LibrarySection]") -> None:
         """
@@ -657,37 +394,40 @@ def main(
     """
     pcm = PlexCollectionMaker(edit_collections=edit_collections)
 
-    plex_libraries = pcm.get_libraries()
+    plex_libs = pcm.get_libraries()
 
     print("Found Plex libraries: ", end="")
-    print(*plex_libraries.keys(), sep=", ")
+    print(*plex_libs.keys(), sep=", ")
     if edit_collections:
         print("Found collection configs:")
-        for lib in plex_libraries.items():
+        for lib in plex_libs.items():
             print(f"  {lib[0]}: ", end="")
-            print(*pcm.collections_config[lib[0]].keys(), sep=", ")
+            print(*pcm.pc.collections_config[lib[0]].keys(), sep=", ")
     print()
 
     if edit_collections:
-        collections_to_update = pcm.make_collections(plex_libraries=plex_libraries)
+        collections_to_update = pcm.make_collections(plex_libraries=plex_libs)
 
-        pcm.edit_collections(plex_libraries=plex_libraries, collections_to_update=collections_to_update)
+        pcm.edit_collections(
+            plex_libraries=plex_libs,
+            collections_to_update=collections_to_update
+        )
 
         print("Collections updated.")
 
     if dump_collections:
         print("Dumping existing collections to file...")
-        stem = pcm.dump_collections(plex_libraries=plex_libraries)
-        print(f'Complete. YAML files at "{stem}".')
+        output_dir = col2yaml(plex_libraries=plex_libs)
+        print(f'Complete. YAML files at "{output_dir}".')
 
     if dump_libraries:
         print("Dumping existing library items to file...")
-        stem = pcm.dump_libraries(plex_libraries=plex_libraries, all_fields=all_fields)
-        print(f'Complete. YAML files at "{stem}".')
+        output_dir = lib2yaml(plex_libraries=plex_libs, all_fields=all_fields)
+        print(f'Complete. YAML files at "{output_dir}".')
 
     if lock_posters:
         print("Locking posters and background art...")
-        pcm.lock_posters(plex_libraries=plex_libraries)
+        pcm.lock_posters(plex_libraries=plex_libs)
         print("Art locked.")
 
 
