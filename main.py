@@ -21,24 +21,27 @@ class PlexCollectionMaker:
         Create collections in Plex libraries from a text file list of shows or movies.
 
         Args:
-            edit_collections (bool, optional): If true, load collection config files. If false, skip loading any
-                collection configs.
+            edit_collections (bool, optional): If true, load collection config files.
+                If false, skip loading any collection configs.
         """
         self.pc = PlexConnection(edit_collections)
 
-    def get_libraries(self) -> "dict[str, LibrarySection]":
+    def get_libraries(self) -> dict[str, LibrarySection]:
         """
         Return accessible Plex libraries.
 
         Returns:
             dict[str, LibrarySection]: {library name: Plex library object}
         """
-        plex_libraries: "dict[str, LibrarySection]" = {}
+        plex_libraries: dict[str, LibrarySection] = {}
         for library in self.pc.config_libraries:
             try:
                 plex_libraries[library] = self.pc.plex.library.section(library)
             except plexapi.exceptions.NotFound:
-                sys.exit(f'Library named "{library}" not found. Please check the config.yml, and consult the README.')
+                sys.exit(
+                    f'Library named "{library}" not found. Please check the '
+                    f'config.yml, and consult the README.'
+                )
         return plex_libraries
 
     def get_item_guid(
@@ -82,7 +85,7 @@ class PlexCollectionMaker:
         except KeyError as exc:
             raise plexapi.exceptions.UnknownType from exc
 
-    def make_collections(self, plex_libraries: "dict[str, LibrarySection]") -> "dict[str, list[Collection]]":
+    def make_collections(self, plex_libraries: dict[str, LibrarySection]) -> dict[str, list[Collection]]:
         """
         Create new regular collections from config lists.
 
@@ -90,9 +93,10 @@ class PlexCollectionMaker:
             plex_libraries (dict[str, LibrarySection]): {library name: Plex library object}
 
         Returns:
-            dict[str, list[Collection]]: {library name: list[Collection]} Preexisting collections to check for updates.
+            dict[str,list[Collection]]: {library name: list[Collection]}
+                Preexisting collections to check for updates.
         """
-        collections_to_update: "dict[str, list[Collection]]" = {}
+        collections_to_update: dict[str, list[Collection]] = {}
         explained_guid = False
         for library in plex_libraries.items():
             collections_to_update[library[0]] = []
@@ -193,7 +197,8 @@ class PlexCollectionMaker:
         return collections_to_update
 
     def edit_collections(
-        self, plex_libraries: "dict[str, LibrarySection]", collections_to_update: "dict[str, list[Collection]]"
+        self, plex_libraries: dict[str, LibrarySection],
+        collections_to_update: dict[str, list[Collection]],
     ):
         """
         Edit existing collections from config lists.
@@ -335,7 +340,9 @@ class PlexCollectionMaker:
                             new_labels = []
                             for config_label in self.pc.collections_config[lib[0]][collection_update.title]["labels"]:
                                 if config_label not in [x.tag for x in collection_update.labels]:
-                                    print(f'Adding "{config_label}" label to "{collection_update.title}" collection...')
+                                    print(
+                                        f'Adding "{config_label}" label to "{collection_update.title}" collection...'
+                                    )
                                     new_labels.append(config_label)
                             if len(new_labels) > 0:
                                 collection_update.addLabel(labels=new_labels)
@@ -364,7 +371,7 @@ class PlexCollectionMaker:
 
 
 def main(
-    edit_collections: bool = False,
+    edit_collections: bool = False, #TODO can this ever be True with the argparse?
     dump_collections: bool = False,
     dump_libraries: bool = False,
     all_fields: bool = False,
@@ -394,7 +401,6 @@ def main(
             plex_libraries=plex_libs,
             collections_to_update=collections_to_update
         )
-
         print("Collections updated.")
 
     if dump_collections:
